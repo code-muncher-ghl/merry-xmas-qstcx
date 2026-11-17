@@ -1,0 +1,2485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- 视口：按 iPhone 竖屏全屏设计；不禁止缩放 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#040814">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<title>Merry Christmas</title>
+
+<!--
+  ============================================================
+  圣诞礼物页 · 单文件自包含
+  ------------------------------------------------------------
+  【要改的地方只有下面 script 顶部的 CFG】
+    nickname   她的昵称
+    loverName  你的名字
+    confession 告白文案
+  【音乐】默认用 Web Audio 现场合成八音盒《Jingle Bells》，
+         想换成自己的 mp3，把 MUSIC_URL 填成音频地址即可。
+  【字体】不直连 Google Fonts；英文用 iOS 自带 Didot / Bodoni，
+         中文用 Songti SC / STSong，全部是系统字体，零外链。
+  ============================================================
+-->
+
+<style>
+  :root{
+    --ink: #eaf4ff;
+    --ink-dim: #a9c2de;
+    --gold: #ffd98a;
+    --ice: #9fe6ff;
+    --wine: #8e2b3f;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body{
+    margin: 0; padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #040814;           /* 深蓝夜空，杜绝白条 */
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* iPhone 全屏：优先 dvh，回退 vh */
+  #stage{
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background:
+      radial-gradient(120% 80% at 50% 0%, #0a1730 0%, #050b1c 55%, #03060f 100%);
+    opacity: 0;
+    transition: opacity 1.5s ease;   /* 1.5s 淡入开场 */
+    overflow: hidden;
+  }
+  #stage.on{ opacity: 1; }
+
+  #scene{
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  /* 暗角，压住四角，让中间的光更集中 */
+  .vignette{
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(90% 70% at 50% 42%, rgba(0,0,0,0) 45%, rgba(2,5,14,.55) 100%);
+  }
+
+  /* ---------- 文字层 ---------- */
+  #ui{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    pointer-events: none;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 14px)
+      max(18px, env(safe-area-inset-right, 0px))
+      calc(env(safe-area-inset-bottom, 0px) + 16px)
+      max(18px, env(safe-area-inset-left, 0px));
+  }
+
+  header{ text-align: center; }
+
+  h1{
+    margin: 0;
+    font-family: "Didot", "Bodoni 72", "Bodoni MT", "Playfair Display", Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-size: clamp(28px, 8.6vw, 40px);
+    line-height: 1.18;
+    letter-spacing: .01em;
+    color: #fff;
+    text-shadow:
+      0 0 18px rgba(159,230,255,.55),
+      0 0 46px rgba(120,190,255,.30),
+      0 1px 0 rgba(0,0,0,.35);
+  }
+  h1 .ch{
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(14px);
+    animation: chIn .9s cubic-bezier(.22,.7,.3,1) forwards;
+  }
+  @keyframes chIn{
+    to{ opacity: 1; transform: translateY(0); }
+  }
+
+  .subtitle{
+    margin: 10px auto 0;
+    max-width: 22em;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font-size: clamp(12.5px, 3.5vw, 14px);
+    letter-spacing: .08em;
+    color: var(--ink-dim);
+    opacity: 0;
+    animation: fadeUp 1.2s ease .9s forwards;
+    text-shadow: 0 0 14px rgba(120,190,255,.28);
+  }
+
+  /* 中间弹性空区：粒子树画在 canvas 上，这块负责把文字推到底部 */
+  #spacer{ flex: 1 1 auto; min-height: 0; }
+
+  #message{
+    text-align: center;
+    opacity: 0;
+    animation: fadeUp 1.6s cubic-bezier(.22,.7,.3,1) 1.2s forwards;
+    padding-bottom: 6px;
+  }
+  #message .confession{
+    margin: 0 auto;
+    max-width: 21em;
+    font-family: "Songti SC", "STSong", "Noto Serif SC", "Times New Roman", serif;
+    font-size: clamp(15px, 4.1vw, 17px);
+    line-height: 1.95;
+    letter-spacing: .04em;
+    color: var(--ink);
+    text-shadow: 0 0 20px rgba(140,200,255,.25);
+    white-space: pre-wrap;
+  }
+  #message .sign{
+    margin-top: 14px;
+    font-family: "Didot", "Songti SC", Georgia, serif;
+    font-size: clamp(12px, 3.4vw, 13.5px);
+    letter-spacing: .12em;
+    color: var(--gold);
+    opacity: .9;
+    text-shadow: 0 0 16px rgba(255,205,120,.45);
+  }
+
+  @keyframes fadeUp{
+    from{ opacity: 0; transform: translateY(16px); }
+    to{ opacity: 1; transform: translateY(0); }
+  }
+
+  footer{
+    margin-top: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: clamp(10.5px, 3vw, 11.5px);
+    letter-spacing: .06em;
+    color: rgba(169,194,222,.62);
+  }
+  footer .dot{ width: 3px; height: 3px; border-radius: 50%; background: rgba(169,194,222,.4); }
+  #giftCount{ color: var(--gold); opacity: .9; }
+
+  /* ---------- 音乐按钮（右下角） ---------- */
+  #musicBtn{
+    position: absolute;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+    width: 48px; height: 48px;          /* ≥44px 可点区域 */
+    border-radius: 50%;
+    border: 1px solid rgba(159,230,255,.28);
+    background: rgba(10,23,48,.55);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: grid; place-items: center;
+    pointer-events: auto;
+    opacity: .82;
+    transition: opacity .3s ease, transform .2s ease, border-color .3s ease;
+  }
+  #musicBtn:active{ transform: scale(.93); }
+  #musicBtn svg{ width: 22px; height: 22px; display: block; }
+  #musicBtn .st{ fill: none; stroke: var(--ice); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  #musicBtn.on{ border-color: rgba(255,217,138,.55); }
+  #musicBtn.on .st{ stroke: var(--gold); }
+  #musicBtn .wave{ opacity: 0; transition: opacity .3s ease; }
+  #musicBtn.on .wave{ opacity: 1; }
+  #musicBtn .slash{ opacity: 1; transition: opacity .3s ease; }
+  #musicBtn.on .slash{ opacity: 0; }
+
+  /* ---------- 贺卡 ---------- */
+  #card{
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    padding: 24px;
+    background: rgba(3,7,18,.62);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .45s ease;
+    z-index: 20;
+  }
+  #card.show{ opacity: 1; pointer-events: auto; }
+
+  .card-inner{
+    position: relative;
+    width: min(340px, 88vw);
+    padding: 30px 24px 24px;
+    border-radius: 20px;
+    text-align: center;
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(38,66,110,.92) 0%, rgba(10,20,42,.96) 70%);
+    border: 1px solid rgba(159,230,255,.22);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.03) inset,
+      0 18px 60px rgba(0,0,0,.55),
+      0 0 70px rgba(120,190,255,.16);
+    transform: translateY(18px) scale(.96);
+    opacity: 0;
+    transition: transform .5s cubic-bezier(.22,.7,.3,1), opacity .5s ease;
+  }
+  #card.show .card-inner{ transform: translateY(0) scale(1); opacity: 1; }
+
+  .card-inner .card-title{
+    font-family: "Didot", Georgia, serif;
+    font-size: 21px;
+    letter-spacing: .06em;
+    color: var(--gold);
+    text-shadow: 0 0 22px rgba(255,205,120,.45);
+  }
+  .card-inner .card-line{
+    width: 40px; height: 1px; margin: 14px auto 16px;
+    background: linear-gradient(90deg, transparent, rgba(255,217,138,.75), transparent);
+  }
+  .card-inner p{
+    margin: 0;
+    font-family: "Songti SC", "STSong", serif;
+    font-size: 15px;
+    line-height: 2;
+    color: var(--ink);
+    white-space: pre-wrap;
+  }
+  .card-inner .card-sign{
+    margin-top: 18px;
+    font-size: 12.5px;
+    letter-spacing: .1em;
+    color: var(--gold);
+    opacity: .85;
+  }
+  #cardClose{
+    position: absolute; top: 8px; right: 8px;
+    width: 44px; height: 44px;              /* ≥44px */
+    display: grid; place-items: center;
+    background: transparent; border: 0; padding: 0;
+    color: rgba(169,194,222,.7);
+    font-size: 22px; line-height: 1;
+  }
+
+  /* ---------- 开场遮罩（圣诞老人驾车） ---------- */
+  #intro{
+    position: absolute; inset: 0; z-index: 30;
+    background: transparent;
+    opacity: 1; transition: opacity 1.1s ease;
+    pointer-events: none;
+  }
+  #intro.gone{ opacity: 0; }
+  #introDim{
+    position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 50% 30%, #061021 0%, #03060f 70%);
+    opacity: 1; transition: opacity .5s linear;
+  }
+  #introCanvas{ position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #introText{
+    position: absolute; left: 0; right: 0; bottom: 16%;
+    text-align: center;
+    font-family: "Songti SC", STSong, serif;
+    font-size: clamp(15px, 4.2vw, 18px);
+    letter-spacing: .18em; color: var(--gold);
+    text-shadow: 0 0 18px rgba(255,205,120,.5);
+    opacity: 0; transition: opacity .5s ease;
+  }
+  #introText.on{ opacity: 1; }
+
+  /* ---------- 开箱祝福弹窗 ---------- */
+  #giftModal{
+    position: absolute; inset: 0; z-index: 22;
+    display: grid; place-items: center; padding: 24px;
+    background: rgba(3,7,18,.55);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .4s ease;
+  }
+  #giftModal.show{ opacity: 1; pointer-events: auto; }
+  .gift-box{
+    position: relative; width: min(260px, 76vw);
+    text-align: center;
+    transform: translateY(16px) scale(.94);
+    opacity: 0;
+    transition: transform .5s cubic-bezier(.22,.7,.3,1), opacity .5s ease;
+  }
+  #giftModal.show .gift-box{ transform: translateY(0) scale(1); opacity: 1; }
+  .gift-box .box-art{
+    width: 120px; height: 120px; margin: 0 auto 18px; position: relative;
+  }
+  .gift-box .lid{
+    position: absolute; left: 50%; top: 0;
+    width: 104px; height: 34px; margin-left: -52px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #c8425c, #8e2b3f);
+    border: 1px solid rgba(255,217,138,.4);
+    transition: transform .6s cubic-bezier(.22,.7,.3,1), opacity .6s ease;
+    transform-origin: 20% 100%;
+  }
+  #giftModal.open .gift-box .lid{
+    transform: translate(-30px, -46px) rotate(-28deg);
+    opacity: .9;
+  }
+  .gift-box .box-body{
+    position: absolute; left: 50%; bottom: 0;
+    width: 92px; height: 72px; margin-left: -46px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #d9566f, #7c2236);
+    border: 1px solid rgba(255,217,138,.35);
+  }
+  .gift-box .ribbon-v{
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 14px;
+    margin-left: -7px; background: var(--gold);
+  }
+  .gift-box .ribbon-h{
+    position: absolute; left: 0; right: 0; top: 30px; height: 14px;
+    background: var(--gold);
+  }
+  .gift-box .blessing{
+    font-family: "Songti SC", STSong, serif;
+    font-size: clamp(26px, 8vw, 34px);
+    letter-spacing: .14em; color: #fff;
+    text-shadow: 0 0 24px rgba(255,205,120,.6);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .5s ease .25s, transform .5s ease .25s;
+  }
+  #giftModal.open .gift-box .blessing{ opacity: 1; transform: translateY(0); }
+  .gift-box .bless-sub{
+    margin-top: 10px; font-size: 13px; letter-spacing: .1em;
+    color: var(--ink-dim); opacity: 0; transition: opacity .5s ease .45s;
+  }
+  #giftModal.open .gift-box .bless-sub{ opacity: 1; }
+  #giftModalClose{
+    position: absolute; top: 8px; right: 8px; width: 44px; height: 44px;
+    display: grid; place-items: center; background: transparent; border: 0;
+    color: rgba(169,194,222,.7); font-size: 22px;
+  }
+
+  /* 尊重「减少动态效果」 */
+  @media (prefers-reduced-motion: reduce){
+    #stage{ transition: none; }
+    h1 .ch{ animation: none; opacity: 1; transform: none; }
+    .subtitle, #message{ animation: none; opacity: 1; }
+    #card, #card .card-inner{ transition: none; }
+    #intro{ display: none; }
+  }
+</style>
+</head>
+
+<body>
+<div id="stage">
+  <canvas id="scene" aria-label="一棵由发光粒子组成的圣诞树"></canvas>
+  <div class="vignette"></div>
+
+  <!-- 开场：圣诞老人驾车飞过 -->
+  <div id="intro">
+    <div id="introDim"></div>
+    <canvas id="introCanvas"></canvas>
+    <div id="introText">圣诞老人正驾着雪橇赶来……</div>
+  </div>
+
+  <div id="ui">
+    <header>
+      <h1 id="title"></h1>
+      <p class="subtitle">这棵树的每一颗光，都是我想你的样子</p>
+    </header>
+
+    <div id="spacer"></div>
+
+    <section id="message">
+      <p class="confession" id="confession"></p>
+      <div class="sign" id="sign"></div>
+    </section>
+
+    <footer>
+      <span>点开树上的礼物，都是我藏起来的喜欢</span>
+      <span class="dot"></span>
+      <span id="giftCount">已收下 0 份</span>
+    </footer>
+  </div>
+
+  <button id="musicBtn" aria-label="音乐开关" aria-pressed="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <!-- 音符 -->
+      <path class="st" d="M9 17.5V6.2l7-1.6v11.2"/>
+      <circle class="st" cx="6.8" cy="17.8" r="2.2"/>
+      <circle class="st" cx="13.8" cy="16" r="2.2"/>
+      <!-- 播放时的声波 -->
+      <g class="wave">
+        <path class="st" d="M18.6 7.6c1.2 1.3 1.2 5.5 0 6.8" opacity=".9"/>
+        <path class="st" d="M20.9 5.6c2 2.2 2 8.6 0 10.8" opacity=".55"/>
+      </g>
+      <!-- 静音斜线 -->
+      <path class="slash st" d="M4.2 4.2 19.8 19.8" opacity=".85"/>
+    </svg>
+  </button>
+
+  <div id="card" role="dialog" aria-modal="true" aria-label="圣诞贺卡">
+    <div class="card-inner">
+      <button id="cardClose" aria-label="关闭贺卡">×</button>
+      <div class="card-title">给我的女孩</div>
+      <div class="card-line"></div>
+      <p id="cardText"></p>
+      <div class="card-sign" id="cardSign"></div>
+    </div>
+  </div>
+
+  <!-- 礼物开箱弹窗 -->
+  <div id="giftModal" role="dialog" aria-modal="true" aria-label="礼物祝福">
+    <div class="gift-box">
+      <button id="giftModalClose" aria-label="关闭">×</button>
+      <div class="box-art">
+        <div class="lid"></div>
+        <div class="box-body">
+          <div class="ribbon-v"></div>
+          <div class="ribbon-h"></div>
+        </div>
+      </div>
+      <div class="blessing" id="blessingText"></div>
+      <div class="bless-sub" id="blessSub"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     0. 需要你改的文案（只改这里）
+     ============================================================ */
+  var CFG = {
+    nickname:   '齐思睿',
+    loverName:  '郭翰林',
+    confession: '这个冬天最浪漫的事，\n是雪落下来的时候，身边有你。\n愿圣诞树的每一颗光，都替我把想念说给你听；\n往后的每一个圣诞，我都想陪在你身边。',
+    // 想用自己的 mp3，填地址即可（留空则用内置八音盒合成）
+    musicUrl:   ''
+  };
+
+  // 礼物盒里的祝福词
+  var BLESSINGS = ['快乐', '幸福', '安康', '好运', '温柔', '被偏爱'];
+
+  /* ============================================================
+     1. 环境与基础工具
+     ============================================================ */
+  var reduceMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var stage   = document.getElementById('stage');
+  var canvas  = document.getElementById('scene');
+  var ctx     = canvas.getContext('2d', { alpha: true });
+  var ui      = document.getElementById('ui');
+  var headerEl = document.querySelector('header');
+  var msgEl   = document.getElementById('message');
+
+  var W = 0, H = 0;                 // CSS 像素尺寸
+  var treeTop = 0, treeBottom = 0;  // 树的可用竖直区间
+  var treeCX = 0, treeCY = 0, treeScale = 1;
+
+  function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+  function lerp(a, b, t){ return a + (b - a) * t; }
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  // 颜色插值：t=0 冰蓝 → t=1 暖金
+  function mixColor(t){
+    // 底部冰蓝 #4cc2ff → 中段淡青白 #d8f2ff → 顶部暖金 #ffc266
+    var r, g, b;
+    if (t < 0.45){
+      var k = t / 0.45;
+      r = lerp(0x3a, 0x8e, k); g = lerp(0xb6, 0xe6, k); b = lerp(0xff, 0xff, k);
+    } else {
+      var k2 = (t - 0.45) / 0.55;
+      r = lerp(0x8e, 0xff, k2); g = lerp(0xe6, 0xae, k2); b = lerp(0xff, 0x5a, k2);
+    }
+    return [r | 0, g | 0, b | 0];
+  }
+
+  /* ============================================================
+     2. 文案注入
+     ============================================================ */
+  (function injectText(){
+    var titleEl = document.getElementById('title');
+    var full = 'Merry Christmas, ' + CFG.nickname;
+    // 逐字浮现
+    for (var i = 0; i < full.length; i++){
+      var ch = full[i];
+      var span = document.createElement('span');
+      span.className = 'ch';
+      span.textContent = ch === ' ' ? '\u00A0' : ch;
+      span.style.animationDelay = (120 + i * 45) + 'ms';
+      titleEl.appendChild(span);
+    }
+    document.getElementById('confession').textContent = CFG.confession;
+    document.getElementById('sign').textContent = '—— 爱你的 ' + CFG.loverName;
+    document.getElementById('cardText').textContent = CFG.confession;
+    document.getElementById('cardSign').textContent = '—— 爱你的 ' + CFG.loverName;
+    document.title = 'Merry Christmas, ' + CFG.nickname;
+  })();
+
+  /* ============================================================
+     3. 画布尺寸与布局
+     ============================================================ */
+  var bgCanvas = document.createElement('canvas');   // 静态背景层
+  var bgCtx = bgCanvas.getContext('2d');
+
+  // 粒子层（低分辨率缓冲，放大后自带柔和光晕）
+  var pCanvas = document.createElement('canvas');
+  var pCtx = pCanvas.getContext('2d', { willReadFrequently: true });
+  var pImg = null, pData = null;
+  var pW = 0, pH = 0, pScale = 1;   // pScale = pW / W
+
+  function layout(){
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    // 主画布
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 背景层同尺寸
+    bgCanvas.width  = Math.round(W * dpr);
+    bgCanvas.height = Math.round(H * dpr);
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 粒子低分辨率缓冲：宽度上限 620，提升光晕密度与清晰度
+    var targetW = Math.min(620, Math.round(W * 0.82));
+    pW = Math.max(240, targetW);
+    pH = Math.round(pW * (H / W));
+    pCanvas.width = pW; pCanvas.height = pH;
+    pScale = pW / W;
+    pImg = pCtx.createImageData(pW, pH);
+    pData = pImg.data;
+
+    // 量一下文字占位，让树长在中间的空白里
+    var hb = headerEl.getBoundingClientRect().bottom;
+    var mt = msgEl.getBoundingClientRect().top;
+    treeTop = hb + 8;
+    treeBottom = Math.max(treeTop + 200, mt - 36);
+
+    var regionH = treeBottom - treeTop;
+    treeCX = W / 2;
+    // 中心略偏下，给树顶爱心留出空间
+    treeCY = treeTop + regionH * 0.50;
+    // 同时受高度与宽度约束（圆锥半径 0.98）
+    treeScale = Math.min(regionH * 0.34, W * 0.36);
+
+    drawBackground();
+    buildStars();
+  }
+
+  /* ============================================================
+     4. 静态背景：夜空 / 月亮 / 雪山 / 松枝
+     ============================================================ */
+  var stars = [];
+  function buildStars(){
+    stars = [];
+    var n = Math.round(clamp(W * H / 9000, 60, 110));
+    for (var i = 0; i < n; i++){
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.72,
+        r: rand(0.4, 1.5),
+        a: rand(0.25, 0.9),
+        ph: Math.random() * Math.PI * 2,
+        sp: rand(0.6, 1.8)
+      });
+    }
+  }
+
+  function drawBackground(){
+    var g = bgCtx;
+    g.clearRect(0, 0, W, H);
+
+    // 夜空
+    var sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0,    '#071229');
+    sky.addColorStop(0.42, '#0a1a35');
+    sky.addColorStop(0.72, '#081428');
+    sky.addColorStop(1,    '#040a16');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, H);
+
+    // 月亮光晕（右上）
+    var mx = W * 0.87, my = H * 0.075;
+    var moon = g.createRadialGradient(mx, my, 0, mx, my, Math.max(W, H) * 0.42);
+    moon.addColorStop(0,   'rgba(226,240,255,.55)');
+    moon.addColorStop(0.12,'rgba(180,215,255,.20)');
+    moon.addColorStop(0.4, 'rgba(120,170,235,.07)');
+    moon.addColorStop(1,   'rgba(120,170,235,0)');
+    g.fillStyle = moon;
+    g.fillRect(0, 0, W, H);
+
+    // 月盘
+    g.beginPath();
+    g.arc(mx, my, Math.max(9, W * 0.024), 0, Math.PI * 2);
+    g.fillStyle = 'rgba(236,246,255,.78)';
+    g.shadowColor = 'rgba(200,228,255,.9)';
+    g.shadowBlur = 34;
+    g.fill();
+    g.shadowBlur = 0;
+
+    // 远山（两层）
+    drawMountains(H * 0.745, H * 0.10, 'rgba(18,38,68,.92)');
+    drawMountains(H * 0.80,  H * 0.065, 'rgba(11,26,50,.96)');
+
+    // 地平线雪雾
+    var haze = g.createLinearGradient(0, H * 0.74, 0, H);
+    haze.addColorStop(0, 'rgba(150,195,240,0)');
+    haze.addColorStop(0.55, 'rgba(130,180,235,.06)');
+    haze.addColorStop(1, 'rgba(90,140,210,.02)');
+    g.fillStyle = haze;
+    g.fillRect(0, H * 0.74, W, H * 0.26);
+
+    // 两侧积雪松枝
+    drawPine(-W * 0.10, H * 0.80, W * 0.26, H * 0.34, 1);
+    drawPine(W * 1.10,  H * 0.79, W * 0.26, H * 0.36, -1);
+  }
+
+  function drawMountains(baseY, amp, color){
+    var g = bgCtx;
+    g.beginPath();
+    g.moveTo(0, baseY + amp);
+    var peaks = 7, step = W / peaks;
+    for (var i = 0; i <= peaks; i++){
+      var x = i * step;
+      var y = baseY - Math.abs(Math.sin(i * 1.7 + 0.6)) * amp - rand(0, amp * 0.35);
+      g.lineTo(x, y);
+    }
+    g.lineTo(W, baseY + amp * 1.4);
+    g.lineTo(0, baseY + amp * 1.4);
+    g.closePath();
+    // 从上到下渐隐，避免出现生硬的水平分割线
+    var grd = g.createLinearGradient(0, baseY - amp, 0, baseY + amp * 1.4);
+    grd.addColorStop(0, color);
+    grd.addColorStop(0.55, color);
+    grd.addColorStop(1, 'rgba(4,10,22,0)');
+    g.fillStyle = grd;
+    g.fill();
+
+    // 山脊微光
+    g.strokeStyle = 'rgba(190,220,255,.14)';
+    g.lineWidth = 1;
+    g.stroke();
+  }
+
+  // 侧边积雪松树：层叠三角剪影 + 顶边雪线
+  function drawPine(originX, originY, w, h, dir){
+    var g = bgCtx;
+    g.save();
+    g.translate(originX, originY);
+    g.scale(dir, 1);
+
+    var layers = 5;
+    for (var i = 0; i < layers; i++){
+      var k = i / (layers - 1);
+      var lw = w * (1 - k * 0.62);
+      var ly = -i * h * 0.17;
+      var lh = h * 0.40 * (1 - k * 0.18);
+
+      g.beginPath();
+      g.moveTo(0, ly - lh);
+      g.lineTo(lw * 0.5, ly + lh * 0.10);
+      g.lineTo(-lw * 0.5, ly + lh * 0.10);
+      g.closePath();
+      g.fillStyle = 'rgba(6,20,28,.78)';
+      g.fill();
+
+      // 积雪：只描上沿两条边
+      g.beginPath();
+      g.moveTo(-lw * 0.5, ly + lh * 0.10);
+      g.lineTo(0, ly - lh);
+      g.lineTo(lw * 0.5, ly + lh * 0.10);
+      g.strokeStyle = 'rgba(205,232,255,.20)';
+      g.lineWidth = 1.1;
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  /* ============================================================
+     5. 粒子树
+     ============================================================ */
+  var TARGET_PARTICLES = (function(){
+    // 按屏幕面积与像素比估算，手机 2.2~3.6 万，桌面 5 万；性能守护仍会动态降级
+    var area = window.innerWidth * window.innerHeight;
+    var base = clamp(area / 9, 22000, 50000);
+    if (reduceMotion) base *= 0.7;
+    return Math.round(base);
+  })();
+
+  var P = { n: 0, x: null, y: null, z: null, r: null, g: null, b: null, ph: null, sz: null };
+
+  // 开场：粒子从雪橇尾流飞到树位（origin → home），由 introProgress 0→1 驱动
+  var introProgress = 0;
+  var introDone = false;
+  var px0 = null, py0 = null, pz0 = null;   // 开场起点（雪橇尾流附近）
+
+  function seedIntroOrigins(){
+    px0 = new Float32Array(P.n);
+    py0 = new Float32Array(P.n);
+    pz0 = new Float32Array(P.n);
+    for (var i = 0; i < P.n; i++){
+      // 起点：一条从雪橇停靠点斜向下收的「粒子河」，
+      // 越靠上的树尖越晚出发，视觉上像被雪橇一路洒下来
+      var t = (P.y[i] + 1) / 2;              // 0 底 → 1 顶
+      var along = 1 - Math.pow(t, 0.65);     // 树尖在最上游
+      px0[i] = lerp(0.55, -0.30, along) + rand(-0.26, 0.26);
+      py0[i] = lerp(1.75, 0.55, along) + rand(-0.16, 0.16);
+      pz0[i] = Math.sin(t * TURNS * Math.PI * 2) * 0.55 + rand(-0.28, 0.28);
+    }
+  }
+
+  var TURNS = 8.5;       // 螺旋圈数
+  var CONE_R = 0.86;     // 底部半径（世界单位）
+  var TIERS = 5;         // 层数：做成「层叠裙边」，一眼看出是圣诞树
+  var YS = 1.22;         // 竖直拉伸：同样的宽度下显得更高挑
+
+  // 树体半径轮廓：每层先外扩再收窄，形成锯齿轮廓
+  function coneRadiusAt(t){
+    var ti = Math.floor(t * TIERS);
+    var f = t * TIERS - ti;
+    if (ti >= TIERS){ ti = TIERS - 1; f = 1; }
+    var baseR = CONE_R * (1 - (ti / TIERS) * 0.92);
+    var taper = 1 - 0.46 * f;
+    return baseR * taper;
+  }
+
+  function buildTree(count){
+    var n = count;
+    P.n = n;
+    P.x = new Float32Array(n); P.y = new Float32Array(n); P.z = new Float32Array(n);
+    P.r = new Uint8Array(n); P.g = new Uint8Array(n); P.b = new Uint8Array(n);
+    P.ph = new Uint8Array(n); P.sz = new Float32Array(n);
+
+    for (var i = 0; i < n; i++){
+      // 按圆锥表面积均匀采样：底部圈大 → 粒子更多
+      // t = 1 - sqrt(u) 让密度 ∝ (1-t)，表面看起来才均匀
+      var t = 1 - Math.sqrt(Math.random());
+      var y = -1 + t * 2;
+
+      var coneR = coneRadiusAt(t);
+
+      // 65% 随机角度（铺满锥面），35% 沿螺旋（保留「螺旋树」的暗示）
+      var ang;
+      var onSpiral = Math.random() < 0.35 && t < 0.90;
+      if (onSpiral){
+        ang = t * TURNS * Math.PI * 2 + rand(-0.55, 0.55);
+      } else {
+        ang = Math.random() * Math.PI * 2;
+      }
+
+      // 半径：贴面为主，少量内部与星尘
+      var u = Math.random();
+      var rr;
+      if (u < 0.80)      rr = coneR * rand(0.88, 1.03);
+      else if (u < 0.96) rr = coneR * rand(0.35, 0.88);
+      else               rr = coneR * rand(1.04, 1.26);
+
+      P.x[i] = Math.cos(ang) * rr;
+      P.z[i] = Math.sin(ang) * rr;
+      P.y[i] = y + rand(-0.02, 0.02);
+
+      var c = mixColor(t);
+      // 亮度随机拉开层次，避免整片糊成白色
+      var f = rand(0.40, 0.95);
+      if (u >= 0.80 && u < 0.96) f *= 0.58;   // 内部粒子更暗
+      if (onSpiral) f *= 1.12;                 // 螺旋骨架更亮一点点
+      if (t > 0.90) f *= 0.62;                 // 树尖收一点，避免糊成白线
+      P.r[i] = (c[0] * f) | 0;
+      P.g[i] = (c[1] * f) | 0;
+      P.b[i] = (c[2] * f) | 0;
+      P.ph[i] = (Math.random() * 255) | 0;
+      P.sz[i] = rand(0.8, 1.7);
+    }
+  }
+
+  /* ============================================================
+     6. 3D 投影
+     ============================================================ */
+  var angle = 0;
+  var pointerYaw = 0;   // 指针视差：让树随手指轻微转动
+  var camPitch = 0.16;
+  var FOCAL = 3.4;
+  var cosA = 1, sinA = 0, cosP = 1, sinP = 0;
+
+  function updateCam(){
+    var a = angle + pointerYaw;
+    cosA = Math.cos(a); sinA = Math.sin(a);
+    cosP = Math.cos(camPitch); sinP = Math.sin(camPitch);
+  }
+
+  // 投影：返回屏幕坐标与透视系数
+  var _px = 0, _py = 0, _pp = 1;
+  function project(x, y, z){
+    var x1 = x * cosA - z * sinA;
+    var z1 = x * sinA + z * cosA;
+    var yy = y * YS;
+    var y1 = yy * cosP - z1 * sinP;
+    var z2 = z1 * cosP + yy * sinP;
+    var persp = FOCAL / (FOCAL - z2 * 0.95);
+    _pp = persp;
+    _px = treeCX + x1 * persp * treeScale;
+    _py = treeCY - y1 * persp * treeScale;
+    return persp;
+  }
+
+  /* ============================================================
+     7. 装饰物（球 / 串灯 / 拐杖糖 / 礼物盒 / 蝴蝶结 / 树顶爱心）
+     ============================================================ */
+  var ornaments = [];   // 装饰球
+  var lights = [];      // 串灯
+  var gifts = [];       // 可点击礼物盒
+  var canes = [];       // 拐杖糖
+  var bows = [];        // 蝴蝶结
+  var heart = { x: 0, y: 0, r: 0, pulse: 0 };
+
+  function buildDecor(){
+    ornaments = [];
+    for (var i = 0; i < 30; i++){
+      var t = rand(0.05, 0.92);
+      var ang = t * TURNS * Math.PI * 2 + rand(-0.6, 0.6);
+      var rr = coneRadiusAt(t) * 1.03;
+      ornaments.push({
+        x: Math.cos(ang) * rr,
+        y: -1 + t * 2,
+        z: Math.sin(ang) * rr,
+        r: rand(0.030, 0.052),
+        gold: Math.random() < 0.6,
+        ph: Math.random() * Math.PI * 2
+      });
+    }
+
+    lights = [];
+    var LN = 160;
+    for (var j = 0; j < LN; j++){
+      var tt = j / (LN - 1);
+      var aa = tt * TURNS * Math.PI * 2 * 1.06 + 0.4;
+      var rr2 = coneRadiusAt(tt) * 1.05;
+      lights.push({
+        x: Math.cos(aa) * rr2,
+        y: -1 + tt * 2,
+        z: Math.sin(aa) * rr2,
+        i: j
+      });
+    }
+
+    gifts = [];
+    var giftAng = [0.4, 1.6, 2.5, 3.6, 4.6, 5.5];
+    var giftHue = ['#c8425c', '#d9a441', '#5aa8d8', '#7bc47f', '#b784e6', '#e88bb0'];
+    for (var k = 0; k < 6; k++){
+      gifts.push({
+        x: Math.cos(giftAng[k]) * CONE_R * rand(0.50, 0.66),
+        y: -0.52 + k * 0.20,
+        z: Math.sin(giftAng[k]) * CONE_R * rand(0.50, 0.66),
+        got: false,
+        hue: giftHue[k],
+        bob: Math.random() * Math.PI * 2
+      });
+    }
+
+    canes = [
+      { x: Math.cos(1.5) * 0.55, y: 0.28, z: Math.sin(1.5) * 0.55, s: 1 },
+      { x: Math.cos(4.2) * 0.42, y: 0.62, z: Math.sin(4.2) * 0.42, s: 0.85 },
+      { x: Math.cos(5.6) * 0.50, y: -0.10, z: Math.sin(5.6) * 0.50, s: 0.9 },
+      { x: Math.cos(2.8) * 0.46, y: 0.48, z: Math.sin(2.8) * 0.46, s: 0.78 }
+    ];
+
+    bows = [
+      { x: Math.cos(0.9) * 0.72, y: -0.62, z: Math.sin(0.9) * 0.72 },
+      { x: Math.cos(3.6) * 0.62, y: -0.30, z: Math.sin(3.6) * 0.62 },
+      { x: Math.cos(5.1) * 0.58, y: 0.18, z: Math.sin(5.1) * 0.58 }
+    ];
+  }
+
+  var glowSprites = {};
+  function makeGlow(color){
+    var s = document.createElement('canvas');
+    s.width = s.height = 64;
+    var c = s.getContext('2d');
+    var g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, color + '1)');
+    g.addColorStop(0.25, color + '.55)');
+    g.addColorStop(0.6, color + '.12)');
+    g.addColorStop(1, color + '0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 64, 64);
+    return s;
+  }
+  function initSprites(){
+    glowSprites.warm = makeGlow('rgba(255,214,140,');
+    glowSprites.ice  = makeGlow('rgba(159,230,255,');
+    glowSprites.red  = makeGlow('rgba(255,120,150,');
+    glowSprites.white= makeGlow('rgba(235,248,255,');
+  }
+
+  function drawSprite(name, x, y, size, alpha){
+    var s = glowSprites[name];
+    if (!s) return;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(s, x - size / 2, y - size / 2, size, size);
+  }
+
+  /* ============================================================
+     8. 雪花
+     ============================================================ */
+  var snow = [];
+  function buildSnow(){
+    // 三层景深：远景小而慢、中景常规、近景大而快，数量 55~100
+    var n = Math.round(clamp(W / 7, 55, 100));
+    snow = [];
+    for (var i = 0; i < n; i++){
+      var depth = Math.random();
+      var near = depth > 0.72;
+      var far = depth < 0.28;
+      snow.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: far ? rand(0.5, 1.1) : (near ? rand(1.8, 3.2) : rand(0.9, 2.2)),
+        vy: (far ? rand(8, 18) : (near ? rand(30, 58) : rand(14, 34))) * (H / 800),
+        sway: far ? rand(0.3, 0.9) : rand(0.6, 1.8),
+        phase: Math.random() * Math.PI * 2,
+        spin: rand(-0.5, 0.5),
+        a: far ? rand(0.2, 0.5) : (near ? rand(0.6, 0.95) : rand(0.35, 0.8)),
+        dead: 0
+      });
+    }
+  }
+
+  /* ============================================================
+     9. 交互：指针偏移 / 点击光粒 / 礼物 / 爱心
+     ============================================================ */
+  var pointer = { x: -9999, y: -9999, tx: 0, ty: 0, active: false };
+  var bursts = [];
+  var floats = [];      // 收集礼物时上浮的图标
+  var meteors = [];     // 偶发流星
+  var fireworks = [];   // 自动 / 点击烟花
+  var giftCount = 0;
+  var fireworksTimer = 2.2;
+
+  function addBurst(x, y, count, kind){
+    for (var i = 0; i < count; i++){
+      var a = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+      var sp = rand(40, 190);
+      bursts.push({
+        x: x, y: y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 0,
+        max: rand(0.6, 1.2),
+        kind: kind || 'spark',
+        size: rand(0.8, 2.2)
+      });
+    }
+  }
+
+  function heartBurst(cx, cy){
+    for (var i = 0; i < 26; i++){
+      var a = (i / 26) * Math.PI * 2;
+      var sp = rand(70, 210);
+      bursts.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 30,
+        life: 0,
+        max: rand(1.1, 1.8),
+        kind: 'heart',
+        size: rand(6, 13)
+      });
+    }
+  }
+
+  // 流星：斜向划过夜空，带拖尾
+  function spawnMeteor(){
+    var fromLeft = Math.random() < 0.5;
+    meteors.push({
+      x: fromLeft ? rand(-W * 0.2, W * 0.3) : rand(W * 0.7, W * 1.2),
+      y: rand(H * 0.05, H * 0.32),
+      vx: (fromLeft ? 1 : -1) * rand(180, 320),
+      vy: rand(70, 130),
+      life: 0, max: rand(0.7, 1.2)
+    });
+  }
+
+  // 烟花：中心爆开一圈彩色光点
+  function spawnFirework(cx, cy, big){
+    var colors = [
+      [255, 214, 140], [159, 230, 255], [255, 143, 174],
+      [180, 230, 170], [210, 180, 255]
+    ];
+    var c = colors[(Math.random() * colors.length) | 0];
+    var n = big ? 42 : 26;
+    for (var i = 0; i < n; i++){
+      var a = (i / n) * Math.PI * 2 + Math.random() * 0.25;
+      var sp = rand(50, big ? 230 : 160);
+      fireworks.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 0, max: rand(0.8, 1.5),
+        r: c[0], g: c[1], b: c[2],
+        size: rand(1.2, 2.6)
+      });
+    }
+  }
+
+  function hitTest(x, y){
+    // 树顶爱心
+    var dx = x - heart.x, dy = y - heart.y;
+    if (dx * dx + dy * dy < (heart.r * 2.2) * (heart.r * 2.2)){
+      return { type: 'heart' };
+    }
+    // 礼物盒（只测正面）
+    for (var i = 0; i < gifts.length; i++){
+      var g = gifts[i];
+      if (g.got || !g.visible || g.persp < 0.98) continue;
+      var ddx = x - g._sx, ddy = y - g._sy;
+      if (ddx * ddx + ddy * ddy < 36 * 36) return { type: 'gift', gift: g, x: g._sx, y: g._sy };
+    }
+    return null;
+  }
+
+  function onTap(x, y){
+    var hit = hitTest(x, y);
+    if (hit && hit.type === 'heart'){
+      heartBurst(heart.x, heart.y);
+      openCard();
+      return;
+    }
+    if (hit && hit.type === 'gift'){
+      collectGift(hit.gift);
+      return;
+    }
+    addBurst(x, y, 16, 'spark');
+    if (Math.random() < 0.35) spawnFirework(x, y, false);
+  }
+
+  function collectGift(g){
+    g.got = true;
+    giftCount++;
+    document.getElementById('giftCount').textContent = '已收下 ' + giftCount + ' 份';
+    // 随机小礼物图标
+    var kinds = ['bell', 'star', 'heart'];
+    floats.push({
+      x: g._sx, y: g._sy,
+      kind: kinds[(Math.random() * 3) | 0],
+      life: 0, max: 1.6,
+      size: 22
+    });
+    addBurst(g._sx, g._sy, 14, 'spark');
+    spawnFirework(g._sx, g._sy, false);
+    // 开箱弹窗：礼盒盖掀开，亮出祝福词
+    var bless = BLESSINGS[Math.min(giftCount - 1, BLESSINGS.length - 1)];
+    openGiftModal(bless);
+    if (giftCount === gifts.length){
+      spawnFirework(treeCX, treeCY - treeScale * 0.4, true);
+      spawnFirework(treeCX - treeScale * 0.5, treeCY, true);
+      spawnFirework(treeCX + treeScale * 0.5, treeCY, true);
+    }
+    chime();
+  }
+
+  var giftModalEl = document.getElementById('giftModal');
+  var blessingEl = document.getElementById('blessingText');
+  var blessSubEl = document.getElementById('blessSub');
+  var blessTimer = null;
+
+  function openGiftModal(bless){
+    blessingEl.textContent = bless;
+    blessSubEl.textContent = '这份礼物，专程送给齐思睿';
+    giftModalEl.classList.add('show');
+    // 下一帧再加 open，触发盒盖掀开与祝福浮现的过渡
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){ giftModalEl.classList.add('open'); });
+    });
+    if (blessTimer) clearTimeout(blessTimer);
+  }
+  function closeGiftModal(){
+    giftModalEl.classList.remove('open');
+    blessTimer = setTimeout(function(){ giftModalEl.classList.remove('show'); }, 300);
+  }
+  document.getElementById('giftModalClose').addEventListener('click', function(e){
+    e.stopPropagation(); closeGiftModal();
+  });
+  giftModalEl.addEventListener('click', function(e){
+    if (e.target === giftModalEl) closeGiftModal();
+  });
+
+  var toastEl = null, toastTimer = null;
+  function showToast(text){
+    if (!toastEl){
+      toastEl = document.createElement('div');
+      toastEl.style.cssText =
+        'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px)+96px);' +
+        'transform:translateX(-50%);max-width:82vw;padding:10px 16px;border-radius:14px;' +
+        'background:rgba(10,23,48,.72);border:1px solid rgba(159,230,255,.25);' +
+        'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
+        'font-family:"Songti SC",STSong,serif;font-size:14px;line-height:1.7;color:#eaf4ff;' +
+        'text-align:center;opacity:0;transition:opacity .35s ease;pointer-events:none;z-index:15;';
+      document.getElementById('stage').appendChild(toastEl);
+    }
+    toastEl.textContent = text;
+    toastEl.style.opacity = '1';
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.style.opacity = '0'; }, 2600);
+  }
+
+  /* ============================================================
+     10. 贺卡
+     ============================================================ */
+  var cardEl = document.getElementById('card');
+  function openCard(){
+    cardEl.classList.add('show');
+    chime(880);
+  }
+  function closeCard(){ cardEl.classList.remove('show'); }
+  document.getElementById('cardClose').addEventListener('click', function(e){
+    e.stopPropagation(); closeCard();
+  });
+  cardEl.addEventListener('click', function(e){
+    if (e.target === cardEl) closeCard();
+  });
+
+  /* ============================================================
+     11. 音频：八音盒 Jingle Bells + 轻提示音
+     ============================================================ */
+  var Audio1 = (function(){
+    var actx = null, master = null, delay = null, fb = null, filter = null;
+    var playing = false, timer = null;
+    var nextTime = 0, idx = 0;
+    var audioEl = null;
+
+    // 简版 Jingle Bells（音高, 拍数）
+    var N = { C4:261.63, D4:293.66, E4:329.63, F4:349.23, G4:392.00, A4:440.00, B4:493.88, C5:523.25 };
+    var SONG = [
+      ['E4',1],['E4',1],['E4',2],
+      ['E4',1],['E4',1],['E4',2],
+      ['E4',1],['G4',1],['C4',1.5],['D4',.5],['E4',4],
+      ['F4',1],['F4',1],['F4',1.5],['F4',.5],
+      ['F4',1],['E4',1],['E4',1],['E4',.5],['E4',.5],
+      ['E4',1],['D4',1],['D4',1],['E4',1],
+      ['D4',2],['G4',2]
+    ];
+    var BEAT = 0.52;
+
+    function ensure(){
+      if (actx) return actx;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0.0001;
+
+      filter = actx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 2400;
+
+      delay = actx.createDelay(1.0);
+      delay.delayTime.value = 0.28;
+      fb = actx.createGain();
+      fb.gain.value = 0.26;
+
+      filter.connect(master);
+      filter.connect(delay);
+      delay.connect(fb);
+      fb.connect(delay);
+      delay.connect(master);
+      master.connect(actx.destination);
+      return actx;
+    }
+
+    function note(freq, t, dur, gain){
+      if (!actx) return;
+      var o1 = actx.createOscillator();
+      var o2 = actx.createOscillator();
+      var g  = actx.createGain();
+      o1.type = 'sine';  o1.frequency.value = freq;
+      o2.type = 'triangle'; o2.frequency.value = freq * 2.002;   // 轻微失谐，像八音盒泛音
+      var g2 = actx.createGain(); g2.gain.value = 0.18;
+      o2.connect(g2); g2.connect(g);
+
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.25, dur * 1.7));
+
+      o1.connect(g);
+      g.connect(filter);
+      o1.start(t); o2.start(t);
+      o1.stop(t + dur * 2.2); o2.stop(t + dur * 2.2);
+    }
+
+    function schedule(){
+      if (!playing || !actx) return;
+      var horizon = actx.currentTime + 0.6;
+      while (nextTime < horizon){
+        var item = SONG[idx % SONG.length];
+        var dur = item[1] * BEAT;
+        note(N[item[0]], nextTime, dur, 0.16);
+        nextTime += dur;
+        idx++;
+      }
+    }
+
+    function start(){
+      if (CFG.musicUrl){
+        if (!audioEl){ audioEl = new Audio(CFG.musicUrl); audioEl.loop = true; audioEl.volume = 0.55; }
+        audioEl.play().catch(function(){});
+        playing = true;
+        return true;
+      }
+      var a = ensure();
+      if (!a) return false;
+      if (a.state === 'suspended') a.resume();
+      playing = true;
+      idx = 0;
+      nextTime = a.currentTime + 0.08;
+      master.gain.cancelScheduledValues(a.currentTime);
+      master.gain.setTargetAtTime(0.16, a.currentTime, 0.4);
+      if (timer) clearInterval(timer);
+      timer = setInterval(schedule, 120);
+      schedule();
+      return true;
+    }
+
+    function stop(){
+      playing = false;
+      if (audioEl) audioEl.pause();
+      if (actx) master.gain.setTargetAtTime(0.0001, actx.currentTime, 0.2);
+      if (timer){ clearInterval(timer); timer = null; }
+    }
+
+    // 点击提示音：独立于背景音乐，静音状态下也能响（仍在手势里创建 AudioContext）
+    var sfxGain = null;
+    function chime(freq){
+      var a = ensure();
+      if (!a) return;
+      if (a.state === 'suspended') a.resume();
+      if (!sfxGain){
+        sfxGain = a.createGain();
+        sfxGain.gain.value = 0.22;
+        sfxGain.connect(a.destination);
+      }
+      var t = a.currentTime + 0.01;
+      var f = freq || (760 + Math.random() * 300);
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.9, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(g); g.connect(sfxGain);
+      o.start(t); o.stop(t + 0.55);
+    }
+
+    return { start: start, stop: stop, chime: chime, isOn: function(){ return playing; } };
+  })();
+
+  // 全局别名：礼物 / 爱心 的提示音
+  function chime(freq){ Audio1.chime(freq); }
+
+  var musicBtn = document.getElementById('musicBtn');
+  musicBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if (Audio1.isOn()){
+      Audio1.stop();
+      musicBtn.classList.remove('on');
+      musicBtn.setAttribute('aria-pressed', 'false');
+    } else {
+      if (Audio1.start()){
+        musicBtn.classList.add('on');
+        musicBtn.setAttribute('aria-pressed', 'true');
+      }
+    }
+  });
+
+  /* ============================================================
+     12. 渲染主循环
+     ============================================================ */
+  var sinLUT = new Float32Array(256);
+  for (var si = 0; si < 256; si++) sinLUT[si] = Math.sin(si / 256 * Math.PI * 2);
+
+  var time = 0, lastT = 0, slowFrames = 0, fastFrames = 0;
+  var particleCount = TARGET_PARTICLES;
+
+  function drawTreeParticles(dt){
+    // 清空低分辨率缓冲
+    pData.fill(0);
+
+    var n = P.n;
+    var px = P.x, py = P.y, pz = P.z;
+    var pr = P.r, pg = P.g, pb = P.b, pph = P.ph, psz = P.sz;
+    var cx = treeCX * pScale, cy = treeCY * pScale, sc = treeScale * pScale;
+    var bw = pW, bh = pH;
+    var pulseIdx = (time * 40) | 0;
+
+    // 开场插值：easeOutCubic，尾流粒子旋落到树位
+    var ip = introDone ? 1 : 1 - Math.pow(1 - introProgress, 3);
+    var ox = px0, oy = py0, oz = pz0;
+
+    for (var i = 0; i < n; i++){
+      var wx = ox ? lerp(ox[i], px[i], ip) : px[i];
+      var wy = oy ? lerp(oy[i], py[i], ip) : py[i];
+      var wz = oz ? lerp(oz[i], pz[i], ip) : pz[i];
+      var x1 = wx * cosA - wz * sinA;
+      var z1 = wx * sinA + wz * cosA;
+      var yy = wy * YS;
+      var y1 = yy * cosP - z1 * sinP;
+      var z2 = z1 * cosP + yy * sinP;
+
+      var persp = FOCAL / (FOCAL - z2 * 0.95);
+      var sx = cx + x1 * persp * sc;
+      var sy = cy - y1 * persp * sc;
+
+      if (sx < 0 || sx >= bw || sy < 0 || sy >= bh) continue;
+
+      // 呼吸闪烁
+      var ph = (pulseIdx + pph[i]) & 255;
+      var pulse = 0.72 + 0.28 * sinLUT[ph];
+
+      // 近亮远暗（整体压低，避免叠加后全部饱和成白色）
+      var bri = (0.155 + 0.145 * (persp - 0.75) / 0.7) * pulse * psz[i];
+      if (bri <= 0.02) continue;
+
+      var R = pr[i] * bri, G = pg[i] * bri, B = pb[i] * bri;
+
+      var ix = sx | 0, iy = sy | 0;
+      var o = (iy * bw + ix) << 2;
+
+      // 核心像素 + 十字晕开（Uint8ClampedArray 自动饱和）
+      // 注意：晕开像素必须同时写入 alpha，否则在 'lighter' 合成下不可见
+      pData[o] += R; pData[o + 1] += G; pData[o + 2] += B; pData[o + 3] = 255;
+      if (ix > 0){
+        var oL = o - 4;
+        pData[oL] += R * .20; pData[oL + 1] += G * .20; pData[oL + 2] += B * .20; pData[oL + 3] = 255;
+      }
+      if (ix < bw - 1){
+        var oR = o + 4;
+        pData[oR] += R * .20; pData[oR + 1] += G * .20; pData[oR + 2] += B * .20; pData[oR + 3] = 255;
+      }
+      if (iy > 0){
+        var oU = o - bw * 4;
+        pData[oU] += R * .20; pData[oU + 1] += G * .20; pData[oU + 2] += B * .20; pData[oU + 3] = 255;
+      }
+      if (iy < bh - 1){
+        var oD = o + bw * 4;
+        pData[oD] += R * .20; pData[oD + 1] += G * .20; pData[oD + 2] += B * .20; pData[oD + 3] = 255;
+      }
+    }
+
+    pCtx.putImageData(pImg, 0, 0);
+  }
+
+  function drawRings(){
+    var baseY = treeCY + treeScale * (0.98 * Math.cos(camPitch));
+    var rx = treeScale * 1.28;
+    var ry = rx * 0.30;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < 3; i++){
+      var k = i / 2;
+      var rxi = rx * (1 - k * 0.22);
+      var ryi = ry * (1 - k * 0.22);
+      var alpha = 0.20 - k * 0.05;
+      ctx.beginPath();
+      ctx.ellipse(treeCX, baseY, rxi, ryi, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(159,230,255,' + alpha + ')';
+      ctx.lineWidth = 1.1;
+      ctx.setLineDash(i === 1 ? [3, 7] : []);
+      ctx.lineDashOffset = time * (14 + i * 9) * (i % 2 ? -1 : 1);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // 地面暖金光点
+    for (var j = 0; j < 26; j++){
+      var a = (j / 26) * Math.PI * 2 + time * 0.12;
+      var rr = 1.0 + 0.28 * ((j * 37) % 100) / 100;
+      var gx = treeCX + Math.cos(a) * rx * rr * 0.95;
+      var gy = baseY + Math.sin(a) * ry * rr * 0.95;
+      var tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 2.2 + j));
+      drawSprite('warm', gx, gy, 14, 0.25 * tw);
+    }
+    ctx.restore();
+  }
+
+  function heartPath(c, x, y, s){
+    c.beginPath();
+    c.moveTo(x, y + s * 0.32);
+    c.bezierCurveTo(x, y - s * 0.18, x - s * 0.62, y - s * 0.18, x - s * 0.62, y + s * 0.14);
+    c.bezierCurveTo(x - s * 0.62, y + s * 0.52, x - s * 0.16, y + s * 0.74, x, y + s * 0.98);
+    c.bezierCurveTo(x + s * 0.16, y + s * 0.74, x + s * 0.62, y + s * 0.52, x + s * 0.62, y + s * 0.14);
+    c.bezierCurveTo(x + s * 0.62, y - s * 0.18, x, y - s * 0.18, x, y + s * 0.32);
+    c.closePath();
+  }
+
+  function drawHeart(){
+    var p = project(0, 1.05, 0);
+    var sx = _px, sy = _py, sc = p;
+
+    var beat = 0.5 + 0.5 * Math.sin(time * 2.4);
+    var size = treeScale * 0.085 * sc * (1 + beat * 0.08);
+
+    heart.x = sx; heart.y = sy; heart.r = size;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // 外层光晕
+    var g = ctx.createRadialGradient(sx, sy, 0, sx, sy, size * 2.6);
+    g.addColorStop(0, 'rgba(255,120,150,.42)');
+    g.addColorStop(0.45, 'rgba(255,90,130,.14)');
+    g.addColorStop(1, 'rgba(255,90,130,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sx, sy, size * 2.6, 0, Math.PI * 2); ctx.fill();
+
+    // 心形本体
+    heartPath(ctx, sx, sy - size * 0.5, size);
+    var grad = ctx.createLinearGradient(sx, sy - size, sx, sy + size);
+    grad.addColorStop(0, '#fff0f4');
+    grad.addColorStop(0.45, '#ff8fae');
+    grad.addColorStop(1, '#e0506f');
+    ctx.fillStyle = grad;
+    ctx.shadowColor = 'rgba(255,110,150,.85)';
+    ctx.shadowBlur = 26;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  function drawDecor(){
+    // 开场凝聚阶段先不画装饰球/礼物，等树体成形再出现
+    if (!introDone && introProgress < 0.78) return;
+    // 串灯（先画，压在最里层）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < lights.length; i++){
+      var L = lights[i];
+      var p = project(L.x, L.y, L.z);
+      var sx = _px, sy = _py;
+      if (sx < -40 || sx > W + 40) continue;
+      var flow = 0.5 + 0.5 * Math.sin(time * 3.0 - i * 0.32);
+      var on = Math.pow(flow, 3);
+      var size = (10 + on * 16) * p * (treeScale / 300);
+      drawSprite('warm', sx, sy, size, 0.45 + on * 0.55);
+      if (on > 0.7){
+        drawSprite('white', sx, sy, size * 0.5, (on - 0.7) * 2.2);
+      }
+    }
+    ctx.restore();
+
+    // 装饰球 / 拐杖糖 / 蝴蝶结 / 礼物盒：按深度排序（少量，代价可忽略）
+    var items = [];
+    for (var o = 0; o < ornaments.length; o++){
+      ornaments[o]._p = project(ornaments[o].x, ornaments[o].y, ornaments[o].z);
+      ornaments[o]._sx = _px; ornaments[o]._sy = _py;
+      items.push({ z: ornaments[o].z, kind: 'ball', ref: ornaments[o], p: ornaments[o]._p });
+    }
+    for (var c = 0; c < canes.length; c++){
+      canes[c]._p = project(canes[c].x, canes[c].y, canes[c].z);
+      canes[c]._sx = _px; canes[c]._sy = _py;
+      items.push({ z: canes[c].z, kind: 'cane', ref: canes[c], p: canes[c]._p });
+    }
+    for (var b = 0; b < bows.length; b++){
+      bows[b]._p = project(bows[b].x, bows[b].y, bows[b].z);
+      bows[b]._sx = _px; bows[b]._sy = _py;
+      items.push({ z: bows[b].z, kind: 'bow', ref: bows[b], p: bows[b]._p });
+    }
+    for (var gi = 0; gi < gifts.length; gi++){
+      var gf = gifts[gi];
+      if (gf.got) continue;
+      var bobY = gf.y + Math.sin(time * 1.4 + gf.bob) * 0.02;
+      gf._p = project(gf.x, bobY, gf.z);
+      gf._sx = _px; gf._sy = _py; gf.persp = gf._p; gf.visible = true;
+      items.push({ z: gf.z, kind: 'gift', ref: gf, p: gf._p });
+    }
+
+    items.sort(function(a, b){ return a.z - b.z; });
+
+    for (var k = 0; k < items.length; k++){
+      var it = items[k];
+      if (it.kind === 'ball')  drawBall(it.ref);
+      if (it.kind === 'cane')  drawCane(it.ref);
+      if (it.kind === 'bow')   drawBow(it.ref);
+      if (it.kind === 'gift')  drawGift(it.ref);
+    }
+  }
+
+  function drawBall(b){
+    var sx = b._sx, sy = b._sy, p = b._p;
+    if (sx < -30 || sx > W + 30) return;
+    var r = Math.max(2.2, b.r * treeScale * p);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    drawSprite(b.gold ? 'warm' : 'red', sx, sy, r * 7.5, b.gold ? 0.55 : 0.45);
+    ctx.restore();
+
+    var g = ctx.createRadialGradient(sx - r * 0.35, sy - r * 0.35, r * 0.1, sx, sy, r);
+    if (b.gold){
+      g.addColorStop(0, '#fff6d8');
+      g.addColorStop(0.45, '#ffcf72');
+      g.addColorStop(1, '#a86a18');
+    } else {
+      g.addColorStop(0, '#ffd8dd');
+      g.addColorStop(0.45, '#c8425c');
+      g.addColorStop(1, '#5e1424');
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // 高光
+    ctx.beginPath();
+    ctx.arc(sx - r * 0.32, sy - r * 0.34, r * 0.26, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fill();
+  }
+
+  function drawCane(c){
+    var sx = c._sx, sy = c._sy, p = c._p;
+    var h = treeScale * 0.13 * p * c.s;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.lineWidth = Math.max(2, h * 0.22);
+    ctx.lineCap = 'round';
+
+    // 红白条纹：先红底
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.55);
+    ctx.lineTo(0, -h * 0.15);
+    ctx.arc(h * 0.22, -h * 0.15, h * 0.22, Math.PI, 0, false);
+    ctx.lineTo(h * 0.44, h * 0.02);
+    ctx.strokeStyle = '#c8425c';
+    ctx.stroke();
+
+    // 白色斜纹
+    ctx.setLineDash([h * 0.13, h * 0.13]);
+    ctx.strokeStyle = 'rgba(255,240,240,.92)';
+    ctx.lineWidth = Math.max(1.4, h * 0.10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawBow(b){
+    var sx = b._sx, sy = b._sy, p = b._p;
+    var s = treeScale * 0.05 * p;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.fillStyle = 'rgba(200,66,92,.92)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-s * 1.4, -s * 0.9, -s * 0.5, s * 0.1);
+    ctx.quadraticCurveTo(-s * 0.2, s * 0.3, 0, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(s * 1.4, -s * 0.9, s * 0.5, s * 0.1);
+    ctx.quadraticCurveTo(s * 0.2, s * 0.3, 0, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.26, 0, Math.PI * 2);
+    ctx.fillStyle = '#e26a83';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGift(g){
+    var sx = g._sx, sy = g._sy, p = g._p;
+    var s = treeScale * 0.105 * p;
+    var breathe = 1 + Math.sin(time * 2 + g.bob) * 0.05;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.scale(breathe, breathe);
+
+    // 光晕 + 呼吸提示环（告诉用户这里可点）
+    ctx.globalCompositeOperation = 'lighter';
+    drawSprite('warm', 0, 0, s * 4.6, 0.30 + 0.14 * Math.sin(time * 2 + g.bob));
+    var ring = s * (1.5 + 0.18 * Math.sin(time * 2 + g.bob));
+    ctx.beginPath();
+    ctx.arc(0, 0, ring, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,214,140,' + (0.18 + 0.12 * Math.sin(time * 2 + g.bob)) + ')';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // 盒体
+    ctx.fillStyle = '#081120';
+    ctx.strokeStyle = g.hue;
+    ctx.lineWidth = Math.max(2.2, s * 0.10);
+    ctx.beginPath();
+    ctx.rect(-s, -s * 0.62, s * 2, s * 1.5);
+    ctx.fill(); ctx.stroke();
+
+    // 盒盖
+    ctx.beginPath();
+    ctx.rect(-s * 1.12, -s * 0.9, s * 2.24, s * 0.36);
+    ctx.fillStyle = '#0d1a2e';
+    ctx.fill(); ctx.stroke();
+
+    // 丝带
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.9); ctx.lineTo(0, s * 0.88);
+    ctx.moveTo(-s, -s * 0.55); ctx.lineTo(s, -s * 0.55);
+    ctx.strokeStyle = g.hue;
+    ctx.lineWidth = Math.max(2.2, s * 0.14);
+    ctx.stroke();
+
+    // 蝴蝶结
+    ctx.beginPath();
+    ctx.arc(-s * 0.26, -s * 1.02, s * 0.22, 0, Math.PI * 2);
+    ctx.arc(s * 0.26, -s * 1.02, s * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = g.hue;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawSnow(dt){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < snow.length; i++){
+      var f = snow[i];
+      f.phase += dt * f.sway;
+
+      var swayX = Math.sin(f.phase) * 12;
+      var px = f.x + swayX;
+      var py = f.y;
+
+      // 指针推开
+      if (pointer.active){
+        var dx = px - pointer.x, dy = py - pointer.y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < 14000){
+          var d = Math.sqrt(d2) + 0.001;
+          var force = (1 - d / 118) * 26;
+          px += (dx / d) * force;
+          py += (dy / d) * force;
+        }
+      }
+
+      var groundY = H * 0.88;
+      var fade = 1;
+      if (py > groundY - 60) fade = clamp((groundY - py) / 60, 0, 1);
+
+      ctx.globalAlpha = f.a * fade * 0.9;
+      ctx.strokeStyle = 'rgba(230,245,255,.95)';
+      ctx.lineWidth = Math.max(0.9, f.r * 0.5);
+      ctx.lineCap = 'round';
+
+      // 六角雪花
+      var r = f.r * 2.4;
+      ctx.beginPath();
+      for (var k = 0; k < 6; k++){
+        var a = (k / 6) * Math.PI * 2 + time * f.spin * 0.3;
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + Math.cos(a) * r, py + Math.sin(a) * r);
+      }
+      ctx.stroke();
+
+      // 柔光
+      drawSprite('white', px, py, r * 4.2, 0.10 * fade);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function updateSnow(dt){
+    for (var i = 0; i < snow.length; i++){
+      var f = snow[i];
+      f.y += f.vy * dt;
+      f.x += Math.sin(time * 0.7 + f.phase) * 6 * dt;
+      if (f.y > H * 0.9){
+        f.y = -20;
+        f.x = Math.random() * W;
+      }
+      if (f.x < -30) f.x = W + 20;
+      if (f.x > W + 30) f.x = -20;
+    }
+  }
+
+  function drawStars(){
+    ctx.save();
+    for (var i = 0; i < stars.length; i++){
+      var s = stars[i];
+      var tw = 0.55 + 0.45 * Math.sin(time * s.sp + s.ph);
+      ctx.globalAlpha = s.a * (0.35 + tw * 0.65);
+      ctx.fillStyle = 'rgba(220,238,255,1)';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r * (0.8 + tw * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function updateMeteors(dt){
+    for (var i = meteors.length - 1; i >= 0; i--){
+      var m = meteors[i];
+      m.life += dt;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.life >= m.max) meteors.splice(i, 1);
+    }
+  }
+
+  function drawMeteors(){
+    if (!meteors.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < meteors.length; i++){
+      var m = meteors[i];
+      var k = 1 - m.life / m.max;
+      var tail = 0.16;
+      var tx = m.x - m.vx * tail, ty = m.y - m.vy * tail;
+      var g = ctx.createLinearGradient(m.x, m.y, tx, ty);
+      g.addColorStop(0, 'rgba(255,255,255,' + (0.8 * k) + ')');
+      g.addColorStop(1, 'rgba(159,230,255,0)');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(m.x, m.y);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      drawSprite('white', m.x, m.y, 10, 0.5 * k);
+    }
+    ctx.restore();
+  }
+
+  function updateFireworks(dt){
+    for (var i = fireworks.length - 1; i >= 0; i--){
+      var f = fireworks[i];
+      f.life += dt;
+      if (f.life >= f.max){ fireworks.splice(i, 1); continue; }
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vx *= 0.96;
+      f.vy = f.vy * 0.96 + 30 * dt;
+    }
+  }
+
+  function drawFireworks(){
+    if (!fireworks.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < fireworks.length; i++){
+      var f = fireworks[i];
+      var k = 1 - f.life / f.max;
+      ctx.globalAlpha = k;
+      drawSprite('white', f.x, f.y, f.size * 5 * k, 0.6 * k);
+      ctx.fillStyle = 'rgba(' + f.r + ',' + f.g + ',' + f.b + ',' + (0.85 * k) + ')';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.size * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBursts(dt){
+    if (!bursts.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = bursts.length - 1; i >= 0; i--){
+      var b = bursts[i];
+      b.life += dt;
+      if (b.life >= b.max){ bursts.splice(i, 1); continue; }
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.vx *= 0.965;
+      b.vy = b.vy * 0.965 + 26 * dt;
+
+      var k = 1 - b.life / b.max;
+      if (b.kind === 'heart'){
+        ctx.globalAlpha = k;
+        ctx.fillStyle = 'rgba(255,140,170,' + (0.85 * k) + ')';
+        heartPath(ctx, b.x - b.size / 2, b.y - b.size / 2, b.size);
+        ctx.fill();
+      } else {
+        drawSprite('warm', b.x, b.y, b.size * 6 * k, 0.7 * k);
+      }
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloats(dt){
+    if (!floats.length) return;
+    ctx.save();
+    for (var i = floats.length - 1; i >= 0; i--){
+      var f = floats[i];
+      f.life += dt;
+      if (f.life >= f.max){ floats.splice(i, 1); continue; }
+      var k = f.life / f.max;
+      var y = f.y - k * 70;
+      var alpha = 1 - k;
+      ctx.globalAlpha = alpha;
+      ctx.translate(f.x, y);
+      if (f.kind === 'heart'){
+        ctx.fillStyle = 'rgba(255,140,170,.95)';
+        heartPath(ctx, -f.size / 2, -f.size / 2, f.size);
+        ctx.fill();
+      } else if (f.kind === 'star'){
+        starPath(ctx, 0, 0, f.size * 0.5, f.size * 0.22);
+        ctx.fillStyle = 'rgba(255,220,140,.95)';
+        ctx.fill();
+      } else {
+        // 铃铛
+        ctx.fillStyle = 'rgba(255,215,140,.95)';
+        ctx.beginPath();
+        ctx.moveTo(0, -f.size * 0.5);
+        ctx.quadraticCurveTo(f.size * 0.5, -f.size * 0.1, f.size * 0.42, f.size * 0.3);
+        ctx.lineTo(-f.size * 0.42, f.size * 0.3);
+        ctx.quadraticCurveTo(-f.size * 0.5, -f.size * 0.1, 0, -f.size * 0.5);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, f.size * 0.38, f.size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function starPath(c, x, y, R, r){
+    c.beginPath();
+    for (var i = 0; i < 10; i++){
+      var a = -Math.PI / 2 + i * Math.PI / 5;
+      var rr = i % 2 === 0 ? R : r;
+      var px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+    }
+    c.closePath();
+  }
+
+  function drawPointerAura(){
+    if (!pointer.active) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    drawSprite('ice', pointer.x, pointer.y, 90, 0.10);
+    ctx.restore();
+  }
+
+  function render(dt){
+    updateCam();
+
+    // 背景
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    // 星空 + 流星
+    drawStars();
+    drawMeteors();
+
+    // 粒子树：低分辨率缓冲 → 放大，得到柔和光晕
+    drawTreeParticles(dt);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pCanvas, 0, 0, W, H);
+    ctx.restore();
+
+    // 地面法阵
+    drawRings();
+
+    // 树体装饰
+    drawDecor();
+
+    // 树顶爱心
+    drawHeart();
+
+    // 烟花
+    drawFireworks();
+
+    // 雪花
+    drawSnow(dt);
+
+    // 交互特效
+    drawBursts(dt);
+    drawFloats(dt);
+    drawPointerAura();
+  }
+
+  /* ============================================================
+     13. 主循环 / 自适应降级 / 页面可见性
+     ============================================================ */
+  var rafId = null;
+  var running = true;
+  var avgFrame = 16;
+
+  function loop(now){
+    if (!running) return;
+    rafId = requestAnimationFrame(loop);
+
+    if (!lastT) lastT = now;
+    var dt = (now - lastT) / 1000;
+    lastT = now;
+    if (dt > 0.08) dt = 0.08;     // 掉帧时不要跳帧
+
+    time += dt;
+    angle += dt * 0.16;
+    pointerYaw += (pointer.tx * 0.26 - pointerYaw) * 0.05;
+
+    updateSnow(dt);
+
+    // 偶发流星与自动烟花
+    if (!reduceMotion){
+      fireworksTimer -= dt;
+      if (fireworksTimer <= 0){
+        spawnMeteor();
+        if (Math.random() < 0.5) spawnFirework(rand(W * 0.2, W * 0.8), rand(H * 0.18, H * 0.42), false);
+        fireworksTimer = rand(3.5, 6.5);
+      }
+    }
+    updateMeteors(dt);
+    updateFireworks(dt);
+
+    render(dt);
+
+    // 性能守护：连续掉帧就降粒子数
+    avgFrame = avgFrame * 0.92 + (dt * 1000) * 0.08;
+    if (!reduceMotion){
+      if (avgFrame > 24){
+        slowFrames++;
+        if (slowFrames > 45 && particleCount > 8000){
+          particleCount = Math.round(particleCount * 0.78);
+          buildTree(particleCount);
+          slowFrames = 0;
+        }
+      } else {
+        slowFrames = 0;
+        fastFrames++;
+        if (fastFrames > 600 && particleCount < TARGET_PARTICLES){
+          particleCount = Math.min(TARGET_PARTICLES, Math.round(particleCount * 1.12));
+          buildTree(particleCount);
+          fastFrames = 0;
+        }
+      }
+    }
+  }
+
+  function startLoop(){
+    if (reduceMotion || rafId) return;
+    lastT = 0;
+    rafId = requestAnimationFrame(loop);
+  }
+  function stopLoop(){
+    if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden){
+      running = false;
+      stopLoop();
+      if (Audio1.isOn()){ Audio1.stop(); musicBtn.classList.remove('on'); musicBtn.setAttribute('aria-pressed','false'); }
+    } else {
+      running = true;
+      lastT = 0;
+      if (!reduceMotion) startLoop();
+      else render(0);
+    }
+  });
+
+  /* ============================================================
+     14. 事件：触摸 / 鼠标
+     ============================================================ */
+  var startX = 0, startY = 0, startT = 0, moved = false;
+
+  function pointerMove(x, y){
+    pointer.x = x; pointer.y = y;
+    pointer.tx = (x / W - 0.5) * 2;
+    pointer.active = true;
+  }
+
+  function onDown(x, y){
+    startX = x; startY = y; startT = Date.now(); moved = false;
+    pointerMove(x, y);
+  }
+
+  function onUp(x, y){
+    var dt = Date.now() - startT;
+    var dist = Math.hypot(x - startX, y - startY);
+    // 轻点：位移小、时间短
+    if (dist < 14 && dt < 600){
+      onTap(x, y);
+      if (reduceMotion) render(0);   // 静止模式下重绘一次以显示反馈
+    }
+  }
+
+  if (window.PointerEvent){
+    canvas.addEventListener('pointerdown', function(e){
+      onDown(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('pointermove', function(e){
+      pointerMove(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('pointerup', function(e){
+      onUp(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('pointerleave', function(){
+      pointer.active = false;
+    });
+  } else {
+    canvas.addEventListener('touchstart', function(e){
+      var t = e.changedTouches[0];
+      onDown(t.clientX, t.clientY);
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', function(e){
+      var t = e.changedTouches[0];
+      pointerMove(t.clientX, t.clientY);
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', function(e){
+      var t = e.changedTouches[0];
+      onUp(t.clientX, t.clientY);
+    }, { passive: true });
+
+    canvas.addEventListener('mousemove', function(e){
+      pointerMove(e.clientX, e.clientY);
+    });
+    canvas.addEventListener('mouseleave', function(){ pointer.active = false; });
+  }
+
+  // 阻止双指缩放（不禁止缩放属性，只在手势层面兜底）
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive: false });
+
+  /* ============================================================
+     16. 开场：圣诞老人粒子车队 → 金蓝尾流 → 凝聚成圣诞树
+     全部形体（圣诞老人 / 雪橇 / 两只驯鹿 / 礼物袋）都由发光粒子拼出：
+     加法混合 + 双层光晕 + 呼吸抖动；飞到一半时逐波脱离雪橇，
+     沿弧线汇入树位，同时底层树粒子从尾流带收拢，形成「凝成树」。
+     ============================================================ */
+  var introCanvas = document.getElementById('introCanvas');
+  var introCtx = introCanvas.getContext('2d');
+  var introTextEl = document.getElementById('introText');
+  var introStart = 0;
+  var introDimEl = document.getElementById('introDim');
+  var INTRO_DUR = 5.6;          // 整场开场时长（秒）
+
+  /* ---------- 16.1 粒子光晕贴图 ---------- */
+  var introSprites = {};
+  function makeIntroGlow(r, g, b){
+    var c = document.createElement('canvas');
+    c.width = c.height = 64;
+    var x = c.getContext('2d');
+    var gd = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gd.addColorStop(0.00, 'rgba(255,255,255,1)');                 // 白热核心
+    gd.addColorStop(0.14, 'rgba(' + r + ',' + g + ',' + b + ',1)');
+    gd.addColorStop(0.38, 'rgba(' + r + ',' + g + ',' + b + ',0.42)');
+    gd.addColorStop(0.72, 'rgba(' + r + ',' + g + ',' + b + ',0.10)');
+    gd.addColorStop(1.00, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+    x.fillStyle = gd;
+    x.fillRect(0, 0, 64, 64);
+    return c;
+  }
+  function initIntroSprites(){
+    introSprites.red   = makeIntroGlow(236, 104, 128);   // 圣诞老人衣
+    introSprites.deep  = makeIntroGlow(186, 56, 84);     // 雪橇车身
+    introSprites.gold  = makeIntroGlow(255, 214, 132);   // 鹿角 / 滑轨 / 缰绳
+    introSprites.white = makeIntroGlow(240, 247, 255);   // 胡子 / 绒边 / 雪
+    introSprites.ice   = makeIntroGlow(150, 226, 255);   // 冰蓝点缀
+    introSprites.fur   = makeIntroGlow(198, 138, 92);    // 驯鹿 / 礼物袋
+    introSprites.skin  = makeIntroGlow(248, 212, 172);   // 脸
+  }
+
+  /* ---------- 16.2 形体撒点：椭圆 / 线段 / 圆弧 ---------- */
+  var INTRO_BODY = [];
+
+  function iEllipse(list, cx, cy, rx, ry, n, key, size){
+    for (var i = 0; i < n; i++){
+      var a = Math.random() * Math.PI * 2;
+      var r = Math.sqrt(Math.random());
+      list.push({
+        lx: cx + Math.cos(a) * rx * r,
+        ly: cy + Math.sin(a) * ry * r,
+        key: key, size: size * (0.65 + Math.random() * 0.7),
+        ph: Math.random() * 6.283, jit: 0.5 + Math.random() * 0.9,
+        dl: Math.random()
+      });
+    }
+  }
+  function iLine(list, x1, y1, x2, y2, n, key, size, spread){
+    spread = (spread == null) ? 1.0 : spread;
+    for (var i = 0; i < n; i++){
+      var k = Math.random();
+      list.push({
+        lx: lerp(x1, x2, k) + rand(-spread, spread),
+        ly: lerp(y1, y2, k) + rand(-spread, spread),
+        key: key, size: size * (0.65 + Math.random() * 0.7),
+        ph: Math.random() * 6.283, jit: 0.5 + Math.random() * 0.9,
+        dl: Math.random()
+      });
+    }
+  }
+  function iArc(list, cx, cy, r, a0, a1, n, key, size, spread){
+    for (var i = 0; i < n; i++){
+      var a = lerp(a0, a1, Math.random());
+      var rr = r + rand(-spread, spread);
+      list.push({
+        lx: cx + Math.cos(a) * rr,
+        ly: cy + Math.sin(a) * rr,
+        key: key, size: size * (0.65 + Math.random() * 0.7),
+        ph: Math.random() * 6.283, jit: 0.5 + Math.random() * 0.9,
+        dl: Math.random()
+      });
+    }
+  }
+
+  /* ---------- 16.3 拼出「圣诞老人 + 雪橇 + 两只驯鹿 + 礼物袋」 ----------
+     思路：形体靠「轮廓粒子」立住，内部只稀疏点缀。
+     纯填充会在低密度下糊成一团，勾边才认得出形状。 */
+  function iRing(list, cx, cy, rx, ry, n, key, size, thick){
+    thick = thick || 1.2;
+    for (var i = 0; i < n; i++){
+      var a = (i / n) * Math.PI * 2 + rand(-0.06, 0.06);
+      var wob = 1 + rand(-thick, thick) / Math.max(rx, ry);
+      list.push({
+        lx: cx + Math.cos(a) * rx * wob,
+        ly: cy + Math.sin(a) * ry * wob,
+        key: key, size: size * (0.7 + Math.random() * 0.6),
+        ph: Math.random() * 6.283, jit: 0.35 + Math.random() * 0.6,
+        dl: Math.random()
+      });
+    }
+  }
+  function iFill(list, cx, cy, rx, ry, n, key, size){
+    for (var i = 0; i < n; i++){
+      var a = Math.random() * Math.PI * 2;
+      var r = Math.sqrt(Math.random()) * 0.82;
+      list.push({
+        lx: cx + Math.cos(a) * rx * r,
+        ly: cy + Math.sin(a) * ry * r,
+        key: key, size: size * (0.55 + Math.random() * 0.5),
+        ph: Math.random() * 6.283, jit: 0.35 + Math.random() * 0.5,
+        dl: Math.random()
+      });
+    }
+  }
+
+  function buildIntroBody(){
+    var list = [];
+
+    /* ===== 两只驯鹿（雪橇左侧，前面一只略高）===== */
+    for (var d = 0; d < 2; d++){
+      var bx = (d === 0 ? -88 : -150);
+      var by = (d === 0 ? -4 : -1);
+
+      iRing(list, bx, by, 21, 9.5, 52, 'fur', 1.9, 1.4);        // 躯干轮廓
+      iFill(list, bx, by, 21, 9.5, 10, 'fur', 1.5);             // 内部稀疏
+
+      iLine(list, bx + 14, by - 6, bx + 22, by - 21, 14, 'fur', 1.8, 0.8);  // 颈
+      iRing(list, bx + 26, by - 25, 7, 6, 22, 'fur', 1.7, 1.2);             // 头
+      iLine(list, bx + 31, by - 24, bx + 35, by - 22, 5, 'skin', 1.5, 0.4); // 口鼻
+      iLine(list, bx + 21, by - 30, bx + 18, by - 36, 5, 'fur', 1.5, 0.35); // 耳
+
+      // 鹿角：两根主枝 + 四个分叉
+      iLine(list, bx + 25, by - 30, bx + 27, by - 45, 11, 'gold', 1.7, 0.45);
+      iLine(list, bx + 22, by - 30, bx + 17, by - 44, 11, 'gold', 1.7, 0.45);
+      iLine(list, bx + 26, by - 38, bx + 33, by - 42, 6, 'gold', 1.5, 0.4);
+      iLine(list, bx + 19, by - 37, bx + 12, by - 41, 6, 'gold', 1.5, 0.4);
+      iLine(list, bx + 27, by - 45, bx + 31, by - 49, 4, 'gold', 1.4, 0.3);
+      iLine(list, bx + 17, by - 44, bx + 13, by - 48, 4, 'gold', 1.4, 0.3);
+
+      // 四条腿
+      iLine(list, bx + 12, by + 7, bx + 13, by + 19, 8, 'fur', 1.7, 0.4);
+      iLine(list, bx + 6,  by + 7, bx + 5,  by + 19, 8, 'fur', 1.7, 0.4);
+      iLine(list, bx - 8,  by + 7, bx - 9,  by + 19, 8, 'fur', 1.7, 0.4);
+      iLine(list, bx - 15, by + 7, bx - 16, by + 19, 8, 'fur', 1.7, 0.4);
+
+      iLine(list, bx - 21, by - 2, bx - 26, by - 9, 5, 'white', 1.5, 0.5);  // 尾
+      iLine(list, bx - 12, by - 7, bx + 12, by - 8, 9, 'gold', 1.4, 0.3);   // 挽具
+    }
+
+    /* ===== 缰绳 ===== */
+    iLine(list, 6, -8, -60, -30, 16, 'gold', 1.3, 0.4);
+    iLine(list, 6, -8, -122, -28, 18, 'gold', 1.3, 0.4);
+
+    /* ===== 雪橇 ===== */
+    iRing(list, -2, 4, 31, 10, 62, 'deep', 1.9, 1.2);          // 车身轮廓
+    iFill(list, -2, 4, 31, 10, 14, 'deep', 1.5);
+    iLine(list, -31, -5, -31, 6, 8, 'deep', 1.7, 0.4);         // 后挡板
+    iLine(list, 27, -5, 27, 6, 7, 'deep', 1.7, 0.4);           // 前挡板
+    iLine(list, -30, -3, 28, -3, 24, 'gold', 1.4, 0.35);       // 车沿金边
+    iLine(list, -36, 16, 27, 16, 34, 'gold', 1.8, 0.4);        // 滑轨
+    iArc(list, 27, 10, 6.5, Math.PI * 0.45, Math.PI * 1.6, 16, 'gold', 1.7, 0.35);
+    iLine(list, -36, 16, -31, 6, 5, 'gold', 1.5, 0.3);
+
+    /* ===== 圣诞老人 ===== */
+    iRing(list, 0, -14, 11, 13, 44, 'red', 1.8, 1.3);          // 身体轮廓
+    iFill(list, 0, -14, 11, 13, 10, 'red', 1.5);
+    iRing(list, 0, -29, 7.4, 6.8, 24, 'skin', 1.6, 1.2);        // 脸
+    iRing(list, 0, -22, 8, 6.4, 22, 'white', 1.5, 1.3);         // 胡子
+    iLine(list, -9, -7, 9, -7, 10, 'gold', 1.5, 0.35);          // 腰带
+    // 帽子：三角 + 绒边 + 绒球
+    iLine(list, -9, -35, 0, -47, 12, 'red', 1.7, 0.45);
+    iLine(list, 0, -47, 10, -35, 12, 'red', 1.7, 0.45);
+    iLine(list, -10, -35, 11, -35, 10, 'white', 1.5, 0.35);
+    iRing(list, 1, -48, 3.0, 3.0, 9, 'white', 1.5, 1.0);
+    // 眼睛
+    iEllipse(list, -3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);
+    iEllipse(list, 3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);
+    // 握缰绳的手套
+    iRing(list, 8, -12, 3.0, 3.0, 8, 'white', 1.4, 0.8);
+
+    /* ===== 礼物袋 ===== */
+    iRing(list, 25, -14, 11, 12, 34, 'fur', 1.6, 1.4);         // 袋身轮廓
+    iFill(list, 25, -14, 11, 12, 8, 'fur', 1.4);
+    iLine(list, 16, -26, 34, -26, 9, 'gold', 1.4, 0.35);       // 袋口
+    iRing(list, 25, -26, 3.4, 2.6, 7, 'gold', 1.3, 0.8);       // 系带
+    for (var sp = 0; sp < 4; sp++){
+      iEllipse(list, 19 + Math.random() * 10, -17 - Math.random() * 7, 1.2, 1.2, 3, 'gold', 1.4);
+    }
+
+    // 脱离顺序：车尾先走，车头后走；整体再打散一点
+    for (var i = 0; i < list.length; i++){
+      var bp = list[i];
+      bp.dl = clamp((170 - bp.lx) / 220, 0, 1) * 0.55 + Math.random() * 0.45;
+    }
+    INTRO_BODY = list;
+  }
+
+  /* ---------- 16.4 飞行目标：树面上的一个点 ---------- */
+  function introTarget(){
+    var t = Math.random();
+    var rr = coneRadiusAt(t) * rand(0.55, 1.02);
+    var a = Math.random() * Math.PI * 2;
+    return { x: Math.cos(a) * rr, y: -1 + t * 2, z: Math.sin(a) * rr };
+  }
+  function seedIntroTargets(){
+    for (var i = 0; i < INTRO_BODY.length; i++){
+      var tg = introTarget();
+      INTRO_BODY[i].tx = tg.x; INTRO_BODY[i].ty = tg.y; INTRO_BODY[i].tz = tg.z;
+      INTRO_BODY[i].swirl = rand(-1, 1);
+    }
+  }
+
+  /* ---------- 16.5 工具 ---------- */
+  function introLayout(){
+    introCanvas.width = Math.round(W * dpr);
+    introCanvas.height = Math.round(H * dpr);
+    introCanvas.style.width = W + 'px';
+    introCanvas.style.height = H + 'px';
+    introCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function easeInOut(t){
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  function glowAt(g, key, x, y, size, alpha){
+    var sp = introSprites[key];
+    if (!sp || alpha <= 0.004) return;
+    g.globalAlpha = alpha;
+    g.drawImage(sp, x - size * 0.5, y - size * 0.5, size, size);
+  }
+
+  /* ---------- 16.6 开场动画 ---------- */
+  var introTrail = [];
+
+  function runIntro(){
+    introLayout();
+    initIntroSprites();
+    buildIntroBody();
+    seedIntroTargets();
+    introTrail = [];
+    introStart = performance.now() / 1000;
+    introTextEl.classList.add('on');
+
+    var bodyScale = Math.min(W / 258, H / 380);
+    var introRaf = null;
+
+    function frame(nowMs){
+      var now = nowMs / 1000;
+      var t = now - introStart;
+      var p = clamp(t / INTRO_DUR, 0, 1);
+
+      // ---- 雪橇轨迹：从左驶入 → 减速停在右侧 → 驶出画面 ----
+      var sx, sy, tilt, sleighA;
+      if (p < 0.60){
+        var k = p / 0.60;
+        var e = 1 - Math.pow(1 - k, 2.1);                 // 减速驶入
+        sx = lerp(-W * 0.34, W * 0.72, e);
+        sy = H * 0.30 + Math.sin(k * Math.PI * 1.7) * -H * 0.05;
+        tilt = Math.sin(k * Math.PI * 1.7) * 0.07;
+        sleighA = 1;
+      } else {
+        var k2 = clamp((p - 0.60) / 0.18, 0, 1);
+        sx = lerp(W * 0.72, W * 1.18, k2);
+        sy = H * 0.30;
+        tilt = 0;
+        sleighA = 1 - k2;
+      }
+
+      var cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+
+      // ---- 背景：先压黑，随树成形逐渐透出 ----
+      introCtx.clearRect(0, 0, W, H);
+      // 遮罩：前半段近乎全黑（挡住底层文案），雪橇解体时才慢慢让树透出来
+      var dim = p < 0.50 ? 1 : Math.max(0, 1 - (p - 0.50) / 0.30);
+      introDimEl.style.opacity = dim.toFixed(3);
+
+      introCtx.save();
+      introCtx.globalCompositeOperation = 'lighter';
+
+      // ---- 尾流：金蓝粒子，从车尾持续抛洒、减速、下坠、淡出 ----
+      if (p < 0.78 && sleighA > 0.05){
+        var emit = 2;
+        for (var q = 0; q < emit; q++){
+          introTrail.push({
+            x: sx - 18 * bodyScale + rand(-10, 10),
+            y: sy + rand(10, 22) * bodyScale,
+            vx: rand(-150, -30) * bodyScale,
+            vy: rand(60, 170) * bodyScale,
+            life: 0,
+            max: rand(0.8, 1.5),
+            size: rand(1.6, 3.4) * bodyScale,
+            key: Math.random() < 0.56 ? 'gold' : 'ice'
+          });
+        }
+      }
+      for (var ti = introTrail.length - 1; ti >= 0; ti--){
+        var tp = introTrail[ti];
+        tp.life += 1 / 60;
+        if (tp.life >= tp.max){ introTrail.splice(ti, 1); continue; }
+        var lk = tp.life / tp.max;
+        tp.x += tp.vx * (1 / 60) * (1 - lk * 0.6);
+        tp.y += tp.vy * (1 / 60) * (1 - lk * 0.3);
+        tp.vy += 34 * bodyScale * (1 / 60);          // 轻微下坠
+        var ta = (1 - lk) * (1 - lk) * 0.95;
+        glowAt(introCtx, tp.key, tp.x, tp.y, tp.size * 4.2, ta * 0.11);
+        glowAt(introCtx, tp.key, tp.x, tp.y, tp.size * 1.15, ta * 0.55);
+      }
+
+      // ---- 车队本体 ----
+      var despawnStart = 0.42, despawnSpan = 0.40;
+
+      for (var i = 0; i < INTRO_BODY.length; i++){
+        var bp = INTRO_BODY[i];
+
+        // 在雪橇坐标系里的位置 + 呼吸抖动
+        var jx = Math.sin(t * 5.1 + bp.ph) * bp.jit * 1.5;
+        var jy = Math.cos(t * 4.3 + bp.ph * 1.7) * bp.jit * 1.5;
+        var lx = bp.lx + jx, ly = bp.ly + jy;
+
+        var ox = (lx * cosT - ly * sinT) * bodyScale + sx;
+        var oy = (lx * sinT + ly * cosT) * bodyScale + sy;
+
+        // 该粒子何时脱离：车头先走，车尾后走
+        var td = despawnStart + bp.dl * 0.16;
+        var k = clamp((p - td) / despawnSpan, 0, 1);
+
+        if (k <= 0){
+          // 还在车上：呼吸光点
+          var breathe = 0.78 + 0.30 * Math.sin(t * 3.4 + bp.ph);
+          var s = bp.size * bodyScale * breathe;
+          glowAt(introCtx, bp.key, ox, oy, s * 3.0, 0.10 * sleighA);
+          glowAt(introCtx, bp.key, ox, oy, s * 0.98, 0.92 * sleighA);
+        } else if (k < 1){
+          // 脱离：飞向树位，走一条上扬再落下的弧线
+          var e2 = easeInOut(k);
+          var tx2 = bp.tx, ty2 = bp.ty, tz2 = bp.tz;
+          project(tx2, ty2, tz2);
+          var dx = _px, dy = _py;
+
+          var arc = Math.sin(k * Math.PI);
+          var px2 = lerp(ox, dx, e2) + bp.swirl * 46 * bodyScale * arc;
+          var py2 = lerp(oy, dy, e2) - 40 * bodyScale * arc;
+
+          var fade = 1 - Math.pow(k, 1.6);
+          var s2 = bp.size * bodyScale * (1 - 0.45 * k);
+          glowAt(introCtx, bp.key, px2, py2, s2 * 3.2, 0.10 * fade);
+          glowAt(introCtx, bp.key, px2, py2, s2 * 0.98, 0.9 * fade);
+        }
+      }
+
+      introCtx.restore();
+      introCtx.globalAlpha = 1;
+
+      // ---- 底层树：随脱离进度收拢 ----
+      introProgress = clamp((p - 0.50) / 0.40, 0, 1);
+
+      if (p > 0.48) introTextEl.classList.remove('on');
+
+      if (p >= 1){
+        introDone = true;
+        introProgress = 1;
+        introTextEl.classList.remove('on');
+        document.getElementById('intro').classList.add('gone');
+        cancelAnimationFrame(introRaf);
+        return;
+      }
+      introRaf = requestAnimationFrame(frame);
+    }
+
+    introRaf = requestAnimationFrame(frame);
+  }
+
+  /* ============================================================
+     15. 初始化
+     ============================================================ */
+  var resizeTimer = null;
+  function onResize(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      layout();
+      introLayout();
+      buildSnow();
+      if (reduceMotion) render(0);
+    }, 120);
+  }
+
+  function boot(){
+    initSprites();
+    layout();
+    buildTree(TARGET_PARTICLES);
+    seedIntroOrigins();
+    buildDecor();
+    buildSnow();
+
+    render(0);
+    // 1.5s 淡入
+    requestAnimationFrame(function(){ stage.classList.add('on'); });
+
+    if (reduceMotion){
+      // 静止模式：跳过开场（否则遮罩层会一直盖住画面），直接静态展示
+      introDone = true;
+      introProgress = 1;
+      document.getElementById('intro').classList.add('gone');
+      render(0);
+    } else {
+      startLoop();
+      runIntro();
+    }
+
+    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('orientationchange', onResize, { passive: true });
+    if (window.visualViewport){
+      window.visualViewport.addEventListener('resize', onResize, { passive: true });
+    }
+    // 字体加载完再量一次布局（系统字体也有回退差异）
+    if (document.fonts && document.fonts.ready){
+      document.fonts.ready.then(function(){ layout(); if (reduceMotion) render(0); });
+    }
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
+})();
+</script>
+</body>
+</html>
