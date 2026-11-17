@@ -5,8 +5,8 @@
 <!-- 视口：按 iPhone 竖屏全屏设计；不禁止缩放 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#040814">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 28S4 20.5 4 12.5C4 8 7.5 5 11 5c2.4 0 4 1.5 5 3 1-1.5 2.6-3 5-3 3.5 0 7 3 7 7.5C28 20.5 16 28 16 28z%27 fill=%27%23ff8fab%27/%3E%3C/svg%3E">
 <meta name="robots" content="noindex, nofollow, noarchive">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M16 28S4 20.5 4 12.5C4 8 7.5 5 11 5c2.4 0 4 1.5 5 3 1-1.5 2.6-3 5-3 3.5 0 7 3 7 7.5C28 20.5 16 28 16 28z%27 fill=%27%23ff8fab%27/%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
@@ -721,18 +721,31 @@
   var introDone = false;
   var px0 = null, py0 = null, pz0 = null;   // 开场起点（雪橇尾流附近）
 
+  // 每颗粒子的开场运动参数：延迟 / 时长 / 摆幅 / 上下浮动
+  var pdel = null, pdur = null, pspn = null, pbob = null;
+
   function seedIntroOrigins(){
     px0 = new Float32Array(P.n);
     py0 = new Float32Array(P.n);
     pz0 = new Float32Array(P.n);
+    pdel = new Float32Array(P.n);
+    pdur = new Float32Array(P.n);
+    pspn = new Float32Array(P.n);
+    pbob = new Float32Array(P.n);
+
     for (var i = 0; i < P.n; i++){
-      // 起点：一条从雪橇停靠点斜向下收的「粒子河」，
-      // 越靠上的树尖越晚出发，视觉上像被雪橇一路洒下来
-      var t = (P.y[i] + 1) / 2;              // 0 底 → 1 顶
-      var along = 1 - Math.pow(t, 0.65);     // 树尖在最上游
-      px0[i] = lerp(0.55, -0.30, along) + rand(-0.26, 0.26);
-      py0[i] = lerp(1.75, 0.55, along) + rand(-0.16, 0.16);
-      pz0[i] = Math.sin(t * TURNS * Math.PI * 2) * 0.55 + rand(-0.28, 0.28);
+      // 起点：一条从雪橇停靠点斜向下收的「粒子河」
+      var t = (P.y[i] + 1) / 2;
+      var along = 1 - Math.pow(t, 0.62);
+      px0[i] = lerp(0.62, -0.34, along) + rand(-0.34, 0.34);
+      py0[i] = lerp(1.86, 0.52, along) + rand(-0.22, 0.22);
+      pz0[i] = Math.sin(t * TURNS * Math.PI * 2) * 0.62 + rand(-0.42, 0.42);
+
+      // 关键：打散出发时刻与时长，粒子才不会「齐步走」
+      pdel[i] = Math.random() * 0.34;
+      pdur[i] = 0.52 + Math.random() * 0.36;
+      pspn[i] = rand(-0.9, 0.9);          // 中途的横向摆动（弧度）
+      pbob[i] = rand(-0.10, 0.26);        // 中途的上下浮动
     }
   }
 
@@ -1318,14 +1331,27 @@
     var bw = pW, bh = pH;
     var pulseIdx = (time * 40) | 0;
 
-    // 开场插值：easeOutCubic，尾流粒子旋落到树位
-    var ip = introDone ? 1 : 1 - Math.pow(1 - introProgress, 3);
+    // 开场收拢：每颗粒子有自己的出发时刻 / 时长，
+    // 路径中途横向摆一下（绕 Y 轴），落位时摆幅归零 —— 才不像整体平移
     var ox = px0, oy = py0, oz = pz0;
+    var assembling = !introDone && !!ox;
 
     for (var i = 0; i < n; i++){
-      var wx = ox ? lerp(ox[i], px[i], ip) : px[i];
-      var wy = oy ? lerp(oy[i], py[i], ip) : py[i];
-      var wz = oz ? lerp(oz[i], pz[i], ip) : pz[i];
+      var wx, wy, wz;
+      if (assembling){
+        var k = (introProgress - pdel[i]) / pdur[i];
+        if (k < 0) k = 0; else if (k > 1) k = 1;
+        var e = 1 - Math.pow(1 - k, 3);                 // 缓出
+        var sw = Math.sin(k * Math.PI) * pspn[i];       // 中途摆动
+        var ca2 = Math.cos(sw), sa2 = Math.sin(sw);
+        var mx = lerp(ox[i], px[i], e);
+        var mz = lerp(oz[i], pz[i], e);
+        wx = mx * ca2 - mz * sa2;
+        wz = mx * sa2 + mz * ca2;
+        wy = lerp(oy[i], py[i], e) + Math.sin(k * Math.PI) * pbob[i];
+      } else {
+        wx = px[i]; wy = py[i]; wz = pz[i];
+      }
       var x1 = wx * cosA - wz * sinA;
       var z1 = wx * sinA + wz * cosA;
       var yy = wy * YS;
@@ -2169,23 +2195,32 @@
     }
   }
 
+  // 对一组粒子做整体缩放（以 cx,cy 为中心），用来放大圣诞老人与雪橇
+  function scalePts(arr, k, cx, cy){
+    for (var i = 0; i < arr.length; i++){
+      var p = arr[i];
+      p.lx = cx + (p.lx - cx) * k;
+      p.ly = cy + (p.ly - cy) * k;
+      p.size *= Math.pow(k, 0.55);   // 放大后颗粒略粗，密度才不会塌
+    }
+  }
+
   function buildIntroBody(){
     var list = [];
 
-    /* ===== 两只驯鹿（雪橇左侧，前面一只略高）===== */
+    /* ===== 两只驯鹿（收紧间距，给雪橇腾出放大空间）===== */
     for (var d = 0; d < 2; d++){
-      var bx = (d === 0 ? -88 : -150);
+      var bx = (d === 0 ? -70 : -126);
       var by = (d === 0 ? -4 : -1);
 
-      iRing(list, bx, by, 21, 9.5, 52, 'fur', 1.9, 1.4);        // 躯干轮廓
-      iFill(list, bx, by, 21, 9.5, 10, 'fur', 1.5);             // 内部稀疏
+      iRing(list, bx, by, 21, 9.5, 52, 'fur', 1.9, 1.4);
+      iFill(list, bx, by, 21, 9.5, 10, 'fur', 1.5);
 
-      iLine(list, bx + 14, by - 6, bx + 22, by - 21, 14, 'fur', 1.8, 0.8);  // 颈
-      iRing(list, bx + 26, by - 25, 7, 6, 22, 'fur', 1.7, 1.2);             // 头
-      iLine(list, bx + 31, by - 24, bx + 35, by - 22, 5, 'skin', 1.5, 0.4); // 口鼻
-      iLine(list, bx + 21, by - 30, bx + 18, by - 36, 5, 'fur', 1.5, 0.35); // 耳
+      iLine(list, bx + 14, by - 6, bx + 22, by - 21, 14, 'fur', 1.8, 0.8);
+      iRing(list, bx + 26, by - 25, 7, 6, 22, 'fur', 1.7, 1.2);
+      iLine(list, bx + 31, by - 24, bx + 35, by - 22, 5, 'skin', 1.5, 0.4);
+      iLine(list, bx + 21, by - 30, bx + 18, by - 36, 5, 'fur', 1.5, 0.35);
 
-      // 鹿角：两根主枝 + 四个分叉
       iLine(list, bx + 25, by - 30, bx + 27, by - 45, 11, 'gold', 1.7, 0.45);
       iLine(list, bx + 22, by - 30, bx + 17, by - 44, 11, 'gold', 1.7, 0.45);
       iLine(list, bx + 26, by - 38, bx + 33, by - 42, 6, 'gold', 1.5, 0.4);
@@ -2193,60 +2228,65 @@
       iLine(list, bx + 27, by - 45, bx + 31, by - 49, 4, 'gold', 1.4, 0.3);
       iLine(list, bx + 17, by - 44, bx + 13, by - 48, 4, 'gold', 1.4, 0.3);
 
-      // 四条腿
       iLine(list, bx + 12, by + 7, bx + 13, by + 19, 8, 'fur', 1.7, 0.4);
       iLine(list, bx + 6,  by + 7, bx + 5,  by + 19, 8, 'fur', 1.7, 0.4);
       iLine(list, bx - 8,  by + 7, bx - 9,  by + 19, 8, 'fur', 1.7, 0.4);
       iLine(list, bx - 15, by + 7, bx - 16, by + 19, 8, 'fur', 1.7, 0.4);
 
-      iLine(list, bx - 21, by - 2, bx - 26, by - 9, 5, 'white', 1.5, 0.5);  // 尾
-      iLine(list, bx - 12, by - 7, bx + 12, by - 8, 9, 'gold', 1.4, 0.3);   // 挽具
+      iLine(list, bx - 21, by - 2, bx - 26, by - 9, 5, 'white', 1.5, 0.5);
+      iLine(list, bx - 12, by - 7, bx + 12, by - 8, 9, 'gold', 1.4, 0.3);
     }
 
-    /* ===== 缰绳 ===== */
-    iLine(list, 6, -8, -60, -30, 16, 'gold', 1.3, 0.4);
-    iLine(list, 6, -8, -122, -28, 18, 'gold', 1.3, 0.4);
+    /* ===== 缰绳：从圣诞老人的手连到两只鹿头 ===== */
+    iLine(list, 12, -6, -44, -29, 16, 'gold', 1.3, 0.4);
+    iLine(list, 12, -6, -100, -26, 18, 'gold', 1.3, 0.4);
 
-    /* ===== 雪橇 ===== */
-    iRing(list, -2, 4, 31, 10, 62, 'deep', 1.9, 1.2);          // 车身轮廓
-    iFill(list, -2, 4, 31, 10, 14, 'deep', 1.5);
-    iLine(list, -31, -5, -31, 6, 8, 'deep', 1.7, 0.4);         // 后挡板
-    iLine(list, 27, -5, 27, 6, 7, 'deep', 1.7, 0.4);           // 前挡板
-    iLine(list, -30, -3, 28, -3, 24, 'gold', 1.4, 0.35);       // 车沿金边
-    iLine(list, -36, 16, 27, 16, 34, 'gold', 1.8, 0.4);        // 滑轨
-    iArc(list, 27, 10, 6.5, Math.PI * 0.45, Math.PI * 1.6, 16, 'gold', 1.7, 0.35);
-    iLine(list, -36, 16, -31, 6, 5, 'gold', 1.5, 0.3);
+    /* ===== 雪橇（整体放大 1.2 倍）===== */
+    var sl = [];
+    iRing(sl, -2, 4, 31, 10, 62, 'deep', 1.9, 1.2);
+    iFill(sl, -2, 4, 31, 10, 14, 'deep', 1.5);
+    iLine(sl, -31, -5, -31, 6, 8, 'deep', 1.7, 0.4);
+    iLine(sl, 27, -5, 27, 6, 7, 'deep', 1.7, 0.4);
+    iLine(sl, -30, -3, 28, -3, 24, 'gold', 1.4, 0.35);
+    iLine(sl, -36, 16, 27, 16, 34, 'gold', 1.8, 0.4);
+    iArc(sl, 27, 10, 6.5, Math.PI * 0.45, Math.PI * 1.6, 16, 'gold', 1.7, 0.35);
+    iLine(sl, -36, 16, -31, 6, 5, 'gold', 1.5, 0.3);
+    scalePts(sl, 1.20, -2, 4);
+    list = list.concat(sl);
 
-    /* ===== 圣诞老人 ===== */
-    iRing(list, 0, -14, 11, 13, 44, 'red', 1.8, 1.3);          // 身体轮廓
-    iFill(list, 0, -14, 11, 13, 10, 'red', 1.5);
-    iRing(list, 0, -29, 7.4, 6.8, 24, 'skin', 1.6, 1.2);        // 脸
-    iRing(list, 0, -22, 8, 6.4, 22, 'white', 1.5, 1.3);         // 胡子
-    iLine(list, -9, -7, 9, -7, 10, 'gold', 1.5, 0.35);          // 腰带
-    // 帽子：三角 + 绒边 + 绒球
-    iLine(list, -9, -35, 0, -47, 12, 'red', 1.7, 0.45);
-    iLine(list, 0, -47, 10, -35, 12, 'red', 1.7, 0.45);
-    iLine(list, -10, -35, 11, -35, 10, 'white', 1.5, 0.35);
-    iRing(list, 1, -48, 3.0, 3.0, 9, 'white', 1.5, 1.0);
-    // 眼睛
-    iEllipse(list, -3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);
-    iEllipse(list, 3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);
-    // 握缰绳的手套
-    iRing(list, 8, -12, 3.0, 3.0, 8, 'white', 1.4, 0.8);
+    /* ===== 圣诞老人（整体放大 1.55 倍，成为视觉主体）===== */
+    var sn = [];
+    iRing(sn, 0, -14, 11, 13, 44, 'red', 1.8, 1.3);            // 身体
+    iFill(sn, 0, -14, 11, 13, 10, 'red', 1.5);
+    iRing(sn, 0, -29, 7.4, 6.8, 24, 'skin', 1.6, 1.2);         // 脸
+    iRing(sn, 0, -22, 8, 6.4, 22, 'white', 1.5, 1.3);          // 胡子
+    iLine(sn, -9, -7, 9, -7, 10, 'gold', 1.5, 0.35);           // 腰带
+    iLine(sn, -9, -35, 0, -47, 12, 'red', 1.7, 0.45);          // 帽子
+    iLine(sn, 0, -47, 10, -35, 12, 'red', 1.7, 0.45);
+    iLine(sn, -10, -35, 11, -35, 10, 'white', 1.5, 0.35);      // 帽檐
+    iRing(sn, 1, -48, 3.0, 3.0, 9, 'white', 1.5, 1.0);         // 绒球
+    iEllipse(sn, -3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);         // 眼睛
+    iEllipse(sn, 3, -30.5, 0.9, 0.9, 3, 'deep', 1.2);
+    iRing(sn, 8, -12, 3.0, 3.0, 8, 'white', 1.4, 0.8);         // 手套
+    scalePts(sn, 1.55, 0, -22);
+    list = list.concat(sn);
 
-    /* ===== 礼物袋 ===== */
-    iRing(list, 25, -14, 11, 12, 34, 'fur', 1.6, 1.4);         // 袋身轮廓
-    iFill(list, 25, -14, 11, 12, 8, 'fur', 1.4);
-    iLine(list, 16, -26, 34, -26, 9, 'gold', 1.4, 0.35);       // 袋口
-    iRing(list, 25, -26, 3.4, 2.6, 7, 'gold', 1.3, 0.8);       // 系带
+    /* ===== 礼物袋（车尾）===== */
+    var bg = [];
+    iRing(bg, 30, -14, 11, 12, 34, 'fur', 1.6, 1.4);
+    iFill(bg, 30, -14, 11, 12, 8, 'fur', 1.4);
+    iLine(bg, 21, -26, 39, -26, 9, 'gold', 1.4, 0.35);
+    iRing(bg, 30, -26, 3.4, 2.6, 7, 'gold', 1.3, 0.8);
     for (var sp = 0; sp < 4; sp++){
-      iEllipse(list, 19 + Math.random() * 10, -17 - Math.random() * 7, 1.2, 1.2, 3, 'gold', 1.4);
+      iEllipse(bg, 25 + Math.random() * 10, -19 - Math.random() * 7, 1.2, 1.2, 3, 'gold', 1.4);
     }
+    scalePts(bg, 1.12, 30, -14);
+    list = list.concat(bg);
 
     // 脱离顺序：车尾先走，车头后走；整体再打散一点
     for (var i = 0; i < list.length; i++){
       var bp = list[i];
-      bp.dl = clamp((170 - bp.lx) / 220, 0, 1) * 0.55 + Math.random() * 0.45;
+      bp.dl = clamp((170 - bp.lx) / 240, 0, 1) * 0.55 + Math.random() * 0.45;
     }
     INTRO_BODY = list;
   }
@@ -2296,7 +2336,7 @@
     introStart = performance.now() / 1000;
     introTextEl.classList.add('on');
 
-    var bodyScale = Math.min(W / 258, H / 380);
+    var bodyScale = Math.min(W / 242, H / 360);
     var introRaf = null;
 
     function frame(nowMs){
